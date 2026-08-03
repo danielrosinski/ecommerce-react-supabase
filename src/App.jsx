@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertCircle,
   ArrowRight,
   Check,
   ChevronDown,
+  CreditCard,
   Heart,
   Camera,
+  Loader2,
+  MapPin,
   Menu,
   Minus,
   PackageCheck,
@@ -22,6 +26,7 @@ import {
 import AdminPage from "./AdminPage";
 import { defaultProducts, formatCurrency } from "./data";
 import { isSupabaseConfigured } from "./lib/supabase";
+import { createOrder } from "./services/orders";
 import { loadProducts } from "./services/products";
 
 const categories = ["Todos", "Casa", "Moda", "Beleza", "Acessórios"];
@@ -109,6 +114,7 @@ function App() {
       favorites={favorites}
       setFavorites={setFavorites}
       connectedInventory={dataStatus === "connected"}
+      reloadProducts={reloadProducts}
     />
   );
 }
@@ -121,6 +127,7 @@ function Storefront({
   favorites,
   setFavorites,
   connectedInventory,
+  reloadProducts,
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todos");
@@ -129,7 +136,9 @@ function Storefront({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [orderDone, setOrderDone] = useState(false);
+  const [orderResult, setOrderResult] = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
 
   const activeProducts = products.filter((product) => product.active);
   const filteredProducts = useMemo(() => {
@@ -224,25 +233,64 @@ function Storefront({
     );
   };
 
-  const finishOrder = (event) => {
+  const finishOrder = async (event) => {
     event.preventDefault();
-    if (!connectedInventory) {
-      setProducts((currentProducts) =>
-        currentProducts.map((product) => {
-          const item = cart.find((cartItem) => cartItem.id === product.id);
-          return item
-            ? { ...product, stock: Math.max(0, product.stock - item.quantity) }
-            : product;
-        }),
+    if (checkoutLoading || cart.length === 0) return;
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const customer = {
+      name: formData.get("name")?.trim(),
+      email: formData.get("email")?.trim(),
+      phone: formData.get("phone")?.trim(),
+      postal_code: formData.get("postal_code")?.trim(),
+      address_line: formData.get("address_line")?.trim(),
+      address_number: formData.get("address_number")?.trim(),
+      complement: formData.get("complement")?.trim(),
+      neighborhood: formData.get("neighborhood")?.trim(),
+      city: formData.get("city")?.trim(),
+      state: formData.get("state")?.trim(),
+    };
+
+    setCheckoutLoading(true);
+    setCheckoutError("");
+
+    try {
+      const result = await createOrder({ customer, cart, products });
+
+      if (connectedInventory) {
+        await reloadProducts();
+      } else {
+        setProducts((currentProducts) =>
+          currentProducts.map((product) => {
+            const item = cart.find((cartItem) => cartItem.id === product.id);
+            return item
+              ? { ...product, stock: Math.max(0, product.stock - item.quantity) }
+              : product;
+          }),
+        );
+      }
+
+      setCart([]);
+      setOrderResult(result);
+    } catch (error) {
+      console.error("Não foi possível registrar o pedido:", error);
+      const missingFunction =
+        error?.code === "PGRST202" || error?.message?.includes("create_order");
+      setCheckoutError(
+        missingFunction
+          ? "A atualização V3 do banco ainda não foi executada. Siga o arquivo supabase/v3-orders.sql."
+          : error?.message || "Não foi possível confirmar o pedido. Atualize a página e tente novamente.",
       );
+    } finally {
+      setCheckoutLoading(false);
     }
-    setCart([]);
-    setOrderDone(true);
   };
 
   const closeCheckout = () => {
     setCheckoutOpen(false);
-    setOrderDone(false);
+    setOrderResult(null);
+    setCheckoutError("");
   };
 
   return (
@@ -461,8 +509,9 @@ function Storefront({
       <CheckoutModal
         open={checkoutOpen}
         subtotal={subtotal}
-        done={orderDone}
-        inventoryUpdated={!connectedInventory}
+        result={orderResult}
+        loading={checkoutLoading}
+        error={checkoutError}
         onClose={closeCheckout}
         onSubmit={finishOrder}
       />
@@ -594,7 +643,7 @@ function CartDrawer({ open, onClose, cart, products, subtotal, onUpdate, onRemov
                 </div>
               )}
               <button className="primary-button checkout-button" type="button" onClick={onCheckout}>Finalizar compra <ArrowRight size={18} /></button>
-              <small>Ambiente demonstrativo — nenhum pagamento real será realizado.</small>
+              <small>O pedido será registrado. O pagamento permanece simulado nesta versão.</small>
             </div>
           </>
         )}
@@ -606,43 +655,73 @@ function CartDrawer({ open, onClose, cart, products, subtotal, onUpdate, onRemov
 function CheckoutModal({
   open,
   subtotal,
-  done,
-  inventoryUpdated,
+  result,
+  loading,
+  error,
   onClose,
   onSubmit,
 }) {
   if (!open) return null;
+  const shipping = subtotal >= 299 ? 0 : 24.9;
+  const total = subtotal + shipping;
+
   return (
     <div className="modal-layer" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
       <button className="panel-backdrop" type="button" aria-label="Fechar checkout" onClick={onClose} />
       <div className="checkout-modal">
         <button className="modal-close icon-button" type="button" onClick={onClose} aria-label="Fechar"><X /></button>
-        {done ? (
+        {result ? (
           <div className="order-success">
             <div className="success-icon"><Check size={29} /></div>
-            <span className="eyebrow">Pedido confirmado</span>
+            <span className="eyebrow">Pedido registrado</span>
             <h2>Obrigada por escolher a NOVA.</h2>
-            <p>
-              {inventoryUpdated
-                ? "Este foi um pedido demonstrativo. O estoque local foi atualizado para você testar o fluxo completo."
-                : "Este foi um pedido demonstrativo. O estoque real não foi alterado; a baixa automática será adicionada junto com os pagamentos."}
-            </p>
+            <div className="order-number"><span>Número do pedido</span><strong>{result.order_number}</strong></div>
+            <p>O pedido foi salvo e o estoque já foi atualizado. O pagamento desta versão é apenas uma simulação.</p>
+            <div className="success-summary"><span>Total</span><strong>{formatCurrency(result.total)}</strong></div>
             <button className="primary-button" type="button" onClick={onClose}>Voltar à loja</button>
           </div>
         ) : (
           <form onSubmit={onSubmit}>
-            <span className="eyebrow">Checkout demonstrativo</span>
+            <span className="eyebrow">Checkout seguro</span>
             <h2 id="checkout-title">Finalize sua compra</h2>
-            <p>Preencha os dados abaixo para simular o pedido.</p>
+            <p>Preencha os dados para registrar o pedido e reservar os produtos.</p>
+
+            <div className="checkout-section-title"><span>1</span><strong>Dados pessoais</strong></div>
             <div className="form-grid">
-              <label>Nome completo<input required placeholder="Seu nome" /></label>
-              <label>E-mail<input required type="email" placeholder="voce@email.com" /></label>
-              <label className="full">Endereço<input required placeholder="Rua, número e complemento" /></label>
-              <label>CEP<input required inputMode="numeric" placeholder="00000-000" /></label>
-              <label>Cidade<input required placeholder="Sua cidade" /></label>
+              <label>Nome completo<input required name="name" autoComplete="name" placeholder="Seu nome" /></label>
+              <label>E-mail<input required name="email" type="email" autoComplete="email" placeholder="voce@email.com" /></label>
+              <label className="full">Telefone<input required name="phone" type="tel" autoComplete="tel" placeholder="(00) 00000-0000" /></label>
             </div>
-            <div className="checkout-total"><span>Total do pedido</span><strong>{formatCurrency(subtotal)}</strong></div>
-            <button className="primary-button checkout-button" type="submit">Confirmar pedido demonstrativo</button>
+
+            <div className="checkout-section-title"><span>2</span><strong>Endereço de entrega</strong></div>
+            <div className="form-grid address-grid">
+              <label>CEP<input required name="postal_code" autoComplete="postal-code" inputMode="numeric" placeholder="00000-000" /></label>
+              <label>Estado<input required name="state" autoComplete="address-level1" maxLength="2" placeholder="PR" /></label>
+              <label className="full">Rua ou avenida<input required name="address_line" autoComplete="address-line1" placeholder="Nome da rua" /></label>
+              <label>Número<input required name="address_number" placeholder="123" /></label>
+              <label>Complemento<input name="complement" autoComplete="address-line2" placeholder="Apartamento, bloco..." /></label>
+              <label>Bairro<input required name="neighborhood" placeholder="Seu bairro" /></label>
+              <label>Cidade<input required name="city" autoComplete="address-level2" placeholder="Sua cidade" /></label>
+            </div>
+
+            <div className="checkout-section-title"><span>3</span><strong>Pagamento</strong></div>
+            <div className="payment-demo-card">
+              <CreditCard size={21} />
+              <div><strong>Pagamento simulado</strong><span>Nenhuma cobrança real será realizada.</span></div>
+              <Check size={17} />
+            </div>
+
+            {error && <div className="checkout-error" role="alert"><AlertCircle size={18} />{error}</div>}
+
+            <div className="checkout-prices">
+              <div><span>Subtotal</span><strong>{formatCurrency(subtotal)}</strong></div>
+              <div><span>Frete</span><strong>{shipping === 0 ? "Grátis" : formatCurrency(shipping)}</strong></div>
+            </div>
+            <div className="checkout-total"><span>Total do pedido</span><strong>{formatCurrency(total)}</strong></div>
+            <button className="primary-button checkout-button" type="submit" disabled={loading}>
+              {loading ? <><Loader2 className="spin" size={18} /> Registrando pedido...</> : <>Confirmar pedido <ArrowRight size={18} /></>}
+            </button>
+            <div className="checkout-security"><MapPin size={16} /> Os dados serão usados somente para este pedido demonstrativo.</div>
           </form>
         )}
       </div>

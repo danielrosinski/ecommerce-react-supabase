@@ -1,93 +1,98 @@
-# NOVA — e-commerce editorial
+# NOVA — e-commerce editorial V3
 
-Projeto criado com React + Vite, preparado para publicação na Vercel e para usar Supabase no plano gratuito.
+E-commerce responsivo desenvolvido com React, Vite e Supabase, preparado para publicação gratuita na Vercel.
 
-## O que já funciona
+## O que funciona nesta versão
 
-- Catálogo responsivo com busca, categorias e ordenação
-- Produtos com preço, status de estoque e favoritos
-- Carrinho lateral com controle de quantidade e frete progressivo
-- Checkout demonstrativo sem cobrança real
-- Painel de estoque em `/admin`
-- Login administrativo com e-mail e senha
-- Banco de dados protegido por políticas de acesso
-- Modo demonstração quando o banco ainda não está configurado
+### Loja
 
-## 1. Rodar no VS Code
+- Catálogo com busca, categorias, ordenação e favoritos
+- Carrinho com quantidades, validação de estoque e frete progressivo
+- Checkout com dados do cliente e endereço de entrega
+- Registro permanente dos pedidos no Supabase
+- Número exclusivo para cada pedido
+- Frete grátis acima de R$ 299 e frete demonstrativo de R$ 24,90 abaixo desse valor
+- Baixa automática e segura do estoque
+- Pagamento simulado, sem cobrança real
 
-Abra a pasta `nova-ecommerce` no VS Code e execute:
+### Painel administrativo
+
+- Login protegido com e-mail e senha em `/admin`
+- Controle de preços, estoque, destaque e visibilidade dos produtos
+- Lista de pedidos com cliente, endereço, itens e valores
+- Atualização de status: confirmado, em separação, enviado, entregue ou cancelado
+- Restauração automática do estoque quando um pedido é cancelado
+- Políticas de segurança no banco de dados
+
+## Atualizar da V2 para a V3
+
+Se a V2 já está conectada ao Supabase:
+
+1. No Supabase, abra **SQL Editor**.
+2. Abra o arquivo `supabase/v3-orders.sql` deste projeto.
+3. Copie todo o conteúdo, cole no SQL Editor e execute uma única vez.
+4. Copie o seu arquivo `.env.local` da pasta V2 para esta pasta V3.
+5. Execute:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Abra o endereço informado pelo terminal, normalmente `http://localhost:5173`.
+6. Faça um pedido de teste na loja.
+7. Acesse `http://localhost:5173/admin` e abra a aba **Pedidos**.
 
-## 2. Criar o banco gratuito
+> Para atualizar um projeto existente, execute apenas `v3-orders.sql`. O arquivo `schema.sql` completo é destinado principalmente a instalações novas.
 
-1. Crie uma conta em `https://supabase.com`.
-2. Crie um projeto no plano gratuito.
-3. No painel do projeto, abra **SQL Editor**.
-4. Abra o arquivo `supabase/schema.sql` deste projeto.
-5. Copie todo o conteúdo, cole no SQL Editor e execute.
+## Instalação nova
 
-O script cria:
-
-- Tabela de produtos
-- Tabela de administradores
-- Produtos demonstrativos
-- Regras para permitir leitura pública apenas de produtos ativos
-- Regras para permitir alterações somente aos administradores
-
-## 3. Criar o usuário administrador
-
-1. No Supabase, acesse **Authentication > Users**.
-2. Adicione um usuário com seu e-mail e uma senha segura.
-3. Copie o UUID desse usuário.
-4. Volte ao **SQL Editor** e execute, substituindo o valor:
+1. Crie um projeto gratuito em `https://supabase.com`.
+2. No **SQL Editor**, execute todo o arquivo `supabase/schema.sql`.
+3. Em **Authentication > Users**, crie o usuário administrador.
+4. Copie o UUID do usuário.
+5. No SQL Editor, execute:
 
 ```sql
 insert into public.admin_users (user_id)
 values ('COLE-AQUI-O-UUID-DO-USUARIO');
 ```
 
-O site não possui cadastro público de administradores. Isso evita que qualquer pessoa crie uma conta com acesso ao estoque.
-
-## 4. Conectar o site ao Supabase
-
-1. Duplique o arquivo `.env.example`.
-2. Renomeie a cópia para `.env.local`.
-3. No Supabase, abra o painel **Connect** do projeto.
-4. Copie a URL do projeto e a chave pública.
-5. Preencha:
+6. Duplique `.env.example`, renomeie para `.env.local` e preencha:
 
 ```env
 VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_SUA_CHAVE_PUBLICA
 ```
 
-Depois, reinicie o site:
+7. Instale e inicie:
 
 ```bash
+npm install
 npm run dev
 ```
 
-A loja passa a buscar os produtos reais e `/admin` passa a exigir login.
+> Use somente a chave pública. Nunca coloque uma chave `service_role` ou `sb_secret_` no código, GitHub ou Vercel.
 
-> Use somente a chave pública no site. Nunca coloque uma chave `service_role` no código, GitHub ou Vercel.
+## Como os pedidos são protegidos
 
-## 5. Publicar com Git e Vercel
+O navegador envia somente os identificadores e quantidades dos produtos. Uma função no banco:
 
-1. Envie a pasta `nova-ecommerce` para um repositório no GitHub.
-2. Na Vercel, clique em **Add New > Project**.
-3. Importe o repositório.
-4. Em **Environment Variables**, adicione:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_PUBLISHABLE_KEY`
-5. Clique em **Deploy**.
+1. Confere se os produtos estão ativos.
+2. Bloqueia temporariamente as linhas para evitar vendas acima do estoque.
+3. Usa os preços salvos no banco, não os valores enviados pelo navegador.
+4. Registra o pedido e seus itens.
+5. Reduz o estoque na mesma operação.
 
-O arquivo `vercel.json` mantém as rotas `/` e `/admin` funcionando ao atualizar a página.
+Se alguma verificação falhar, nenhuma alteração é gravada.
+
+## Publicar a atualização na Vercel
+
+Depois dos testes locais, envie as alterações para a branch `main` do mesmo repositório. A Vercel fará uma nova publicação automaticamente.
+
+As variáveis continuam as mesmas:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
 
 ## Estrutura principal
 
@@ -95,17 +100,22 @@ O arquivo `vercel.json` mantém as rotas `/` e `/admin` funcionando ao atualizar
 nova-ecommerce/
 ├── src/
 │   ├── lib/supabase.js
-│   ├── services/products.js
+│   ├── services/
+│   │   ├── orders.js
+│   │   └── products.js
 │   ├── AdminPage.jsx
 │   ├── App.jsx
 │   ├── data.js
 │   └── styles.css
-├── supabase/schema.sql
+├── supabase/
+│   ├── schema.sql
+│   └── v3-orders.sql
 ├── .env.example
 ├── package.json
 └── vercel.json
 ```
 
-## Próxima etapa
+## Próxima evolução
 
-O pagamento ainda é simulado. A próxima evolução recomendada é criar pedidos no banco e integrar uma plataforma de pagamentos por uma função segura no servidor.
+O pagamento ainda é simulado. A próxima etapa poderá integrar Mercado Pago ou Stripe por uma função segura no servidor, sem expor chaves privadas no navegador.
+
