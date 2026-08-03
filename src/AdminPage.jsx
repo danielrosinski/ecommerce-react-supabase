@@ -8,20 +8,27 @@ import {
   Database,
   Eye,
   EyeOff,
+  ImageIcon,
   LockKeyhole,
   LogOut,
   Mail,
   MapPin,
   Minus,
+  Pencil,
   Phone,
   Plus,
+  PlusCircle,
   RefreshCw,
   ShieldCheck,
+  Trash2,
+  X,
 } from "lucide-react";
 import { formatCurrency } from "./data";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import { loadOrders, updateOrderStatus } from "./services/orders";
 import {
+  createProduct,
+  deleteProduct,
   restoreExampleProducts,
   saveProductChange,
 } from "./services/products";
@@ -257,6 +264,8 @@ function InventoryManager({
   const [ordersLoading, setOrdersLoading] = useState(connected);
   const [ordersError, setOrdersError] = useState("");
   const [savingOrderId, setSavingOrderId] = useState(null);
+  const [productEditor, setProductEditor] = useState(null);
+  const [productSaving, setProductSaving] = useState(false);
 
   const totalStock = products.reduce((sum, product) => sum + product.stock, 0);
   const lowStock = products.filter(
@@ -365,6 +374,58 @@ function InventoryManager({
     }
   };
 
+  const handleProductSave = async (formProduct) => {
+    setProductSaving(true);
+
+    try {
+      if (productEditor.mode === "create") {
+        const created = await createProduct(formProduct);
+        setProducts((current) => [...current, created]);
+        setStatus({ type: "success", message: "Produto cadastrado com sucesso." });
+      } else {
+        const saved = await saveProductChange(productEditor.product.id, formProduct);
+        setProducts((current) =>
+          current.map((product) =>
+            product.id === saved.id ? { ...product, ...saved } : product,
+          ),
+        );
+        setStatus({ type: "success", message: "Produto atualizado com sucesso." });
+      }
+      setProductEditor(null);
+    } catch (error) {
+      setStatus({
+        type: "error",
+        message: error.message || "Não foi possível salvar o produto.",
+      });
+    } finally {
+      setProductSaving(false);
+    }
+  };
+
+  const handleDeleteProduct = async (product) => {
+    const confirmed = window.confirm(
+      `Excluir “${product.name}”? Essa ação não pode ser desfeita.`,
+    );
+    if (!confirmed) return;
+
+    setSavingId(product.id);
+    try {
+      await deleteProduct(product.id);
+      setProducts((current) => current.filter((item) => item.id !== product.id));
+      setStatus({ type: "success", message: "Produto excluído com sucesso." });
+    } catch (error) {
+      setStatus({
+        type: "error",
+        message:
+          error?.code === "23503"
+            ? "Este produto faz parte de um pedido e não pode ser excluído. Use o status Oculto."
+            : error.message || "Não foi possível excluir o produto.",
+      });
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   const handleOrderStatus = async (order, nextStatus) => {
     if (order.status === nextStatus) return;
     if (
@@ -435,6 +496,13 @@ function InventoryManager({
           <div className="admin-title-actions">
             {view === "products" ? (
               <>
+                <button
+                  className="primary-button new-product-button"
+                  type="button"
+                  onClick={() => setProductEditor({ mode: "create", product: null })}
+                >
+                  <PlusCircle size={16} /> Novo produto
+                </button>
                 <button className="text-button" type="button" onClick={reloadProducts}>
                   <RefreshCw size={14} /> Atualizar produtos
                 </button>
@@ -509,7 +577,7 @@ function InventoryManager({
               </div>
               <div className="inventory-table">
                 <div className="inventory-row inventory-labels">
-                  <span>Produto</span><span>Preço</span><span>Estoque</span><span>Destaque</span><span>Status</span>
+                  <span>Produto</span><span>Preço</span><span>Estoque</span><span>Destaque</span><span>Status</span><span>Ações</span>
                 </div>
                 {products.map((product) => (
                   <div
@@ -608,6 +676,29 @@ function InventoryManager({
                         {product.active ? "Ativo" : "Oculto"}
                       </button>
                     </label>
+                    <div className="product-actions">
+                      <button
+                        type="button"
+                        aria-label={`Editar ${product.name}`}
+                        title="Editar produto"
+                        disabled={savingId === product.id}
+                        onClick={() =>
+                          setProductEditor({ mode: "edit", product })
+                        }
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        className="delete"
+                        type="button"
+                        aria-label={`Excluir ${product.name}`}
+                        title="Excluir produto"
+                        disabled={savingId === product.id}
+                        onClick={() => handleDeleteProduct(product)}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -758,6 +849,121 @@ function InventoryManager({
           </>
         )}
       </main>
+      {productEditor && (
+        <ProductEditor
+          mode={productEditor.mode}
+          product={productEditor.product}
+          saving={productSaving}
+          onClose={() => setProductEditor(null)}
+          onSave={handleProductSave}
+        />
+      )}
+    </div>
+  );
+}
+
+function ProductEditor({ mode, product, saving, onClose, onSave }) {
+  const [form, setForm] = useState({
+    name: product?.name ?? "",
+    category: product?.category ?? "Casa",
+    price: product?.price ?? "",
+    stock: product?.stock ?? 0,
+    tag: product?.tag ?? "",
+    image: product?.image ?? "",
+    featured: product?.featured ?? false,
+    active: product?.active ?? true,
+  });
+
+  useEffect(() => {
+    document.body.classList.add("no-scroll");
+    return () => document.body.classList.remove("no-scroll");
+  }, []);
+
+  const updateField = (field, value) =>
+    setForm((current) => ({ ...current, [field]: value }));
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    onSave({
+      ...form,
+      name: form.name.trim(),
+      tag: form.tag.trim(),
+      image: form.image.trim(),
+      price: Math.max(0, Number(form.price)),
+      stock: Math.max(0, Number(form.stock)),
+    });
+  };
+
+  return (
+    <div className="modal-layer" role="dialog" aria-modal="true" aria-labelledby="product-editor-title">
+      <button className="panel-backdrop" type="button" aria-label="Fechar editor" onClick={onClose} />
+      <form className="product-editor-modal" onSubmit={handleSubmit}>
+        <button className="modal-close icon-button" type="button" onClick={onClose} aria-label="Fechar">
+          <X size={20} />
+        </button>
+        <span className="eyebrow">Catálogo</span>
+        <h2 id="product-editor-title">
+          {mode === "create" ? "Novo produto" : "Editar produto"}
+        </h2>
+        <p>Preencha as informações que serão exibidas na loja.</p>
+
+        <div className="product-editor-layout">
+          <div className="product-image-preview">
+            {form.image ? (
+              <img src={form.image} alt="Prévia do produto" />
+            ) : (
+              <div><ImageIcon size={28} /><span>Prévia da imagem</span></div>
+            )}
+          </div>
+
+          <div className="product-form-grid">
+            <label className="full">
+              Nome do produto
+              <input required value={form.name} onChange={(event) => updateField("name", event.target.value)} placeholder="Ex.: Vaso Cerâmica Areia" />
+            </label>
+            <label>
+              Categoria
+              <select value={form.category} onChange={(event) => updateField("category", event.target.value)}>
+                <option>Casa</option>
+                <option>Moda</option>
+                <option>Beleza</option>
+                <option>Acessórios</option>
+              </select>
+            </label>
+            <label>
+              Etiqueta
+              <input required value={form.tag} onChange={(event) => updateField("tag", event.target.value)} placeholder="Ex.: Nova coleção" />
+            </label>
+            <label>
+              Preço
+              <input required type="number" min="0" step="0.01" value={form.price} onChange={(event) => updateField("price", event.target.value)} placeholder="0,00" />
+            </label>
+            <label>
+              Estoque inicial
+              <input required type="number" min="0" step="1" value={form.stock} onChange={(event) => updateField("stock", event.target.value)} />
+            </label>
+            <label className="full">
+              URL da imagem
+              <input required type="url" value={form.image} onChange={(event) => updateField("image", event.target.value)} placeholder="https://exemplo.com/imagem.jpg" />
+            </label>
+            <label className="product-check">
+              <input type="checkbox" checked={form.featured} onChange={(event) => updateField("featured", event.target.checked)} />
+              <span>Mostrar como destaque</span>
+            </label>
+            <label className="product-check">
+              <input type="checkbox" checked={form.active} onChange={(event) => updateField("active", event.target.checked)} />
+              <span>Produto visível na loja</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="product-editor-actions">
+          <button className="outline-button" type="button" onClick={onClose}>Cancelar</button>
+          <button className="primary-button" type="submit" disabled={saving}>
+            {saving ? <><RefreshCw className="spin" size={16} /> Salvando...</> : mode === "create" ? "Cadastrar produto" : "Salvar alterações"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

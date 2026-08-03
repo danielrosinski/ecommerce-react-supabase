@@ -1,4 +1,4 @@
-# NOVA — e-commerce editorial V3
+# NOVA — e-commerce editorial V4
 
 E-commerce responsivo desenvolvido com React, Vite e Supabase, preparado para publicação gratuita na Vercel.
 
@@ -9,6 +9,7 @@ E-commerce responsivo desenvolvido com React, Vite e Supabase, preparado para pu
 - Catálogo com busca, categorias, ordenação e favoritos
 - Carrinho com quantidades, validação de estoque e frete progressivo
 - Checkout com dados do cliente e endereço de entrega
+- Preenchimento automático de rua, bairro, cidade e estado pelo CEP
 - Registro permanente dos pedidos no Supabase
 - Número exclusivo para cada pedido
 - Frete grátis acima de R$ 299 e frete demonstrativo de R$ 24,90 abaixo desse valor
@@ -19,19 +20,36 @@ E-commerce responsivo desenvolvido com React, Vite e Supabase, preparado para pu
 
 - Login protegido com e-mail e senha em `/admin`
 - Controle de preços, estoque, destaque e visibilidade dos produtos
+- Cadastro e edição completa de produtos com prévia da imagem
+- Exclusão protegida de produtos que não possuem histórico de pedidos
 - Lista de pedidos com cliente, endereço, itens e valores
 - Atualização de status: confirmado, em separação, enviado, entregue ou cancelado
 - Restauração automática do estoque quando um pedido é cancelado
 - Políticas de segurança no banco de dados
 
-## Atualizar da V2 para a V3
+## Atualizar da V3 para a V4
+
+Esta versão não exige uma nova atualização SQL.
+
+1. Copie o arquivo `.env.local` da V3 para a pasta V4.
+2. Execute:
+
+```bash
+npm install
+npm run dev
+```
+
+3. Teste o preenchimento do CEP no checkout.
+4. Em `/admin`, use **Novo produto** para testar o cadastro.
+
+## Atualizar uma V2 para pedidos
 
 Se a V2 já está conectada ao Supabase:
 
 1. No Supabase, abra **SQL Editor**.
 2. Abra o arquivo `supabase/v3-orders.sql` deste projeto.
 3. Copie todo o conteúdo, cole no SQL Editor e execute uma única vez.
-4. Copie o seu arquivo `.env.local` da pasta V2 para esta pasta V3.
+4. Copie o seu arquivo `.env.local` da pasta V2 para esta pasta.
 5. Execute:
 
 ```bash
@@ -43,6 +61,12 @@ npm run dev
 7. Acesse `http://localhost:5173/admin` e abra a aba **Pedidos**.
 
 > Para atualizar um projeto existente, execute apenas `v3-orders.sql`. O arquivo `schema.sql` completo é destinado principalmente a instalações novas.
+
+## Consulta automática de CEP
+
+O checkout consulta o serviço gratuito ViaCEP depois que os oito números do CEP são digitados. Rua, bairro, cidade e UF são preenchidos automaticamente, mas continuam editáveis para o cliente confirmar ou corrigir.
+
+Não é necessário cadastrar chave de API nem adicionar uma variável na Vercel.
 
 ## Instalação nova
 
@@ -102,6 +126,7 @@ nova-ecommerce/
 │   ├── lib/supabase.js
 │   ├── services/
 │   │   ├── orders.js
+│   │   ├── postalCode.js
 │   │   └── products.js
 │   ├── AdminPage.jsx
 │   ├── App.jsx
@@ -118,4 +143,3 @@ nova-ecommerce/
 ## Próxima evolução
 
 O pagamento ainda é simulado. A próxima etapa poderá integrar Mercado Pago ou Stripe por uma função segura no servidor, sem expor chaves privadas no navegador.
-

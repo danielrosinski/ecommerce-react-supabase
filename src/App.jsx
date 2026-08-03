@@ -27,6 +27,7 @@ import AdminPage from "./AdminPage";
 import { defaultProducts, formatCurrency } from "./data";
 import { isSupabaseConfigured } from "./lib/supabase";
 import { createOrder } from "./services/orders";
+import { formatPostalCode, lookupPostalCode } from "./services/postalCode";
 import { loadProducts } from "./services/products";
 
 const categories = ["Todos", "Casa", "Moda", "Beleza", "Acessórios"];
@@ -661,6 +662,76 @@ function CheckoutModal({
   onClose,
   onSubmit,
 }) {
+  const [address, setAddress] = useState({
+    postal_code: "",
+    state: "",
+    address_line: "",
+    address_number: "",
+    complement: "",
+    neighborhood: "",
+    city: "",
+  });
+  const [postalStatus, setPostalStatus] = useState({
+    type: "idle",
+    message: "",
+  });
+
+  useEffect(() => {
+    if (open) return;
+    setAddress({
+      postal_code: "",
+      state: "",
+      address_line: "",
+      address_number: "",
+      complement: "",
+      neighborhood: "",
+      city: "",
+    });
+    setPostalStatus({ type: "idle", message: "" });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const digits = address.postal_code.replace(/\D/g, "");
+
+    if (digits.length !== 8) {
+      setPostalStatus({ type: "idle", message: "" });
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setPostalStatus({ type: "loading", message: "Consultando CEP..." });
+      try {
+        const result = await lookupPostalCode(digits, controller.signal);
+        setAddress((current) => ({
+          ...current,
+          postal_code: result.postal_code,
+          state: result.state,
+          address_line: result.address_line,
+          neighborhood: result.neighborhood,
+          city: result.city,
+          complement: current.complement || result.suggested_complement,
+        }));
+        setPostalStatus({
+          type: "success",
+          message: "Endereço preenchido. Confira os dados e informe o número.",
+        });
+      } catch (postalError) {
+        if (postalError.name === "AbortError") return;
+        setPostalStatus({
+          type: "error",
+          message: postalError.message,
+        });
+      }
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [address.postal_code, open]);
+
   if (!open) return null;
   const shipping = subtotal >= 299 ? 0 : 24.9;
   const total = subtotal + shipping;
@@ -695,13 +766,132 @@ function CheckoutModal({
 
             <div className="checkout-section-title"><span>2</span><strong>Endereço de entrega</strong></div>
             <div className="form-grid address-grid">
-              <label>CEP<input required name="postal_code" autoComplete="postal-code" inputMode="numeric" placeholder="00000-000" /></label>
-              <label>Estado<input required name="state" autoComplete="address-level1" maxLength="2" placeholder="PR" /></label>
-              <label className="full">Rua ou avenida<input required name="address_line" autoComplete="address-line1" placeholder="Nome da rua" /></label>
-              <label>Número<input required name="address_number" placeholder="123" /></label>
-              <label>Complemento<input name="complement" autoComplete="address-line2" placeholder="Apartamento, bloco..." /></label>
-              <label>Bairro<input required name="neighborhood" placeholder="Seu bairro" /></label>
-              <label>Cidade<input required name="city" autoComplete="address-level2" placeholder="Sua cidade" /></label>
+              <label className="postal-code-label">
+                CEP
+                <span className="postal-code-input">
+                  <input
+                    required
+                    name="postal_code"
+                    autoComplete="postal-code"
+                    inputMode="numeric"
+                    placeholder="00000-000"
+                    value={address.postal_code}
+                    onChange={(event) => {
+                      const nextPostalCode = formatPostalCode(event.target.value);
+                      setAddress((current) => ({
+                        ...current,
+                        postal_code: nextPostalCode,
+                        state: nextPostalCode === current.postal_code ? current.state : "",
+                        address_line: nextPostalCode === current.postal_code ? current.address_line : "",
+                        neighborhood: nextPostalCode === current.postal_code ? current.neighborhood : "",
+                        city: nextPostalCode === current.postal_code ? current.city : "",
+                      }));
+                    }}
+                  />
+                  {postalStatus.type === "loading" && <Loader2 className="spin" size={17} />}
+                </span>
+                {postalStatus.message && (
+                  <small className={`postal-message ${postalStatus.type}`}>
+                    {postalStatus.type === "success" && <Check size={13} />}
+                    {postalStatus.type === "error" && <AlertCircle size={13} />}
+                    {postalStatus.message}
+                  </small>
+                )}
+              </label>
+              <label>
+                Estado
+                <input
+                  required
+                  name="state"
+                  autoComplete="address-level1"
+                  maxLength="2"
+                  placeholder="PR"
+                  value={address.state}
+                  onChange={(event) =>
+                    setAddress((current) => ({
+                      ...current,
+                      state: event.target.value.toUpperCase().slice(0, 2),
+                    }))
+                  }
+                />
+              </label>
+              <label className="full">
+                Rua ou avenida
+                <input
+                  required
+                  name="address_line"
+                  autoComplete="address-line1"
+                  placeholder="Nome da rua"
+                  value={address.address_line}
+                  onChange={(event) =>
+                    setAddress((current) => ({
+                      ...current,
+                      address_line: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label>
+                Número
+                <input
+                  required
+                  name="address_number"
+                  placeholder="123"
+                  value={address.address_number}
+                  onChange={(event) =>
+                    setAddress((current) => ({
+                      ...current,
+                      address_number: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label>
+                Complemento
+                <input
+                  name="complement"
+                  autoComplete="address-line2"
+                  placeholder="Apartamento, bloco..."
+                  value={address.complement}
+                  onChange={(event) =>
+                    setAddress((current) => ({
+                      ...current,
+                      complement: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label>
+                Bairro
+                <input
+                  required
+                  name="neighborhood"
+                  placeholder="Seu bairro"
+                  value={address.neighborhood}
+                  onChange={(event) =>
+                    setAddress((current) => ({
+                      ...current,
+                      neighborhood: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label>
+                Cidade
+                <input
+                  required
+                  name="city"
+                  autoComplete="address-level2"
+                  placeholder="Sua cidade"
+                  value={address.city}
+                  onChange={(event) =>
+                    setAddress((current) => ({
+                      ...current,
+                      city: event.target.value,
+                    }))
+                  }
+                />
+              </label>
             </div>
 
             <div className="checkout-section-title"><span>3</span><strong>Pagamento</strong></div>
