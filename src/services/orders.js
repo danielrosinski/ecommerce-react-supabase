@@ -56,7 +56,7 @@ function normalizeOrder(order) {
     order_items: (order.order_items ?? []).map((item) => ({
       ...item,
       id: Number(item.id),
-      product_id: Number(item.product_id),
+      product_id: item.product_id == null ? null : Number(item.product_id),
       unit_price: Number(item.unit_price),
       quantity: Number(item.quantity),
       line_total: Number(item.line_total),

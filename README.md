@@ -33,7 +33,9 @@ O projeto conecta a vitrine ao Supabase para que produtos, estoque, pedidos, per
 - Gestão das taxas de entrega
 - Gestão de cupons e limites de utilização
 - Visualização dos pedidos e atualização de status
+- Finalização de pedidos com preservação do histórico
 - Restauração automática do estoque em cancelamentos
+- Exclusão segura de produtos ligados apenas a pedidos cancelados ou finalizados
 
 ### Segurança
 

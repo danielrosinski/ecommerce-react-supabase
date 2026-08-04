@@ -123,6 +123,36 @@ function App() {
     localStorage.setItem("nova-favorites", JSON.stringify(favorites));
   }, [favorites]);
 
+  useEffect(() => {
+    if (isSupabaseConfigured && dataStatus !== "connected") return;
+
+    setCart((currentCart) => {
+      let changed = false;
+      const nextCart = currentCart.flatMap((item) => {
+        const product = products.find((candidate) => candidate.id === item.id);
+
+        if (!product || !product.active || product.stock <= 0) {
+          changed = true;
+          return [];
+        }
+
+        const quantity = Math.min(item.quantity, product.stock);
+        if (quantity !== item.quantity) changed = true;
+        return [{ ...item, quantity }];
+      });
+
+      return changed ? nextCart : currentCart;
+    });
+
+    setFavorites((currentFavorites) => {
+      const productIds = new Set(products.map((product) => product.id));
+      const nextFavorites = currentFavorites.filter((id) => productIds.has(id));
+      return nextFavorites.length === currentFavorites.length
+        ? currentFavorites
+        : nextFavorites;
+    });
+  }, [dataStatus, products]);
+
   const isAdmin = window.location.pathname.startsWith("/admin");
   const isOrderLookup = window.location.pathname.startsWith("/pedido");
 
@@ -1055,7 +1085,6 @@ function Footer() {
         <div className="footer-brand"><span className="logo floral-logo">ROSINSKI <small>Floricultura</small></span><p>Flores, plantas e gestos de afeto preparados em Guaratuba.</p><span className="footer-social"><Camera size={19} /> Instagram em breve</span></div>
         <div><h3>Flores</h3><a href="#catalogo">Buquês</a><a href="#catalogo">Plantas</a><a href="#catalogo">Destaques</a></div>
         <div><h3>Atendimento</h3><a href="/pedido">Acompanhar pedido</a><span>(42) 00000-0000</span><span>Guaratuba · Paraná</span><span>Entrega ou retirada</span></div>
-        <div><h3>Projeto</h3><p>Modelo funcional de uma floricultura digital.</p><a className="admin-link" href="/admin">Abrir painel administrativo <ArrowRight size={15} /></a></div>
       </div>
       <div className="footer-bottom shell"><span>© 2026 Rosinski Floricultura. Modelo demonstrativo.</span><span>Privacidade · Termos</span></div>
     </footer>

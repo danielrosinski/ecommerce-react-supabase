@@ -54,6 +54,7 @@ const orderStatuses = [
   { value: "preparing", label: "Em preparação" },
   { value: "shipped", label: "Saiu para entrega" },
   { value: "delivered", label: "Entregue" },
+  { value: "completed", label: "Finalizado" },
   { value: "cancelled", label: "Cancelado" },
 ];
 
@@ -420,7 +421,7 @@ function InventoryManager({
 
   const handleDeleteProduct = async (product) => {
     const confirmed = window.confirm(
-      `Excluir “${product.name}”? Essa ação não pode ser desfeita.`,
+      `Excluir “${product.name}”? Pedidos cancelados ou finalizados continuarão preservados no histórico. Essa ação não pode ser desfeita.`,
     );
     if (!confirmed) return;
 
@@ -433,8 +434,8 @@ function InventoryManager({
       setStatus({
         type: "error",
         message:
-          error?.code === "23503"
-            ? "Este produto faz parte de um pedido e não pode ser excluído. Use o status Oculto."
+          error?.code === "PGRST202" || error?.message?.includes("delete_catalog_product")
+            ? "Execute o arquivo supabase/v8-1-ajustes.sql antes de excluir produtos vinculados a pedidos."
             : error.message || "Não foi possível excluir o produto.",
       });
     } finally {
@@ -452,6 +453,14 @@ function InventoryManager({
     ) {
       return;
     }
+    if (
+      nextStatus === "completed" &&
+      !window.confirm(
+        "Finalizar este pedido? Ele permanecerá no histórico e não poderá ser reaberto.",
+      )
+    ) {
+      return;
+    }
 
     setSavingOrderId(order.id);
     try {
@@ -465,6 +474,8 @@ function InventoryManager({
         message:
           nextStatus === "cancelled"
             ? "Pedido cancelado e estoque restaurado."
+            : nextStatus === "completed"
+              ? "Pedido finalizado com sucesso."
             : "Status do pedido atualizado.",
       });
     } catch (error) {
@@ -795,7 +806,8 @@ function InventoryManager({
                             value={order.status}
                             disabled={
                               savingOrderId === order.id ||
-                              order.status === "cancelled"
+                              order.status === "cancelled" ||
+                              order.status === "completed"
                             }
                             onChange={(event) =>
                               handleOrderStatus(order, event.target.value)
@@ -1177,7 +1189,7 @@ function ProductEditor({ mode, product, saving, onClose, onSave }) {
 
   return (
     <div className="modal-layer" role="dialog" aria-modal="true" aria-labelledby="product-editor-title">
-      <button className="panel-backdrop" type="button" aria-label="Fechar editor" onClick={onClose} />
+      <div className="panel-backdrop" aria-hidden="true" />
       <form className="product-editor-modal" onSubmit={handleSubmit}>
         <button className="modal-close icon-button" type="button" onClick={onClose} aria-label="Fechar">
           <X size={20} />

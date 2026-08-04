@@ -787,7 +787,7 @@ img {
 
 .footer-grid {
   display: grid;
-  grid-template-columns: 1.7fr repeat(3, 1fr);
+  grid-template-columns: 1.7fr repeat(2, 1fr);
   gap: 55px;
   padding-bottom: 70px;
 }
@@ -2119,6 +2119,7 @@ img {
 .status-preparing { border-color: #c7c7dc; background: #eeeeF8; color: #585887; }
 .status-shipped { border-color: #b6c9d7; background: #edf4f8; color: #426b83; }
 .status-delivered { border-color: #bfd4ba; background: #edf4eb; color: var(--green); }
+.status-completed { border-color: #abc5a6; background: #e5efe3; color: #2f5a35; }
 .status-cancelled { border-color: #e2b6ae; background: #faece9; color: #984436; }
 
 .order-details-grid {
@@ -2792,7 +2793,7 @@ img {
 
 .order-timeline {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   margin: 0;
   padding: 30px 18px 25px;
   list-style: none;
@@ -3069,7 +3070,6 @@ img {
   .editorial-banner { width: 100%; grid-template-columns: 1fr; }
   .editorial-banner > a { grid-column: auto; }
   .footer-grid { grid-template-columns: 1.6fr 1fr 1fr; }
-  .footer-grid > div:last-child { grid-column: 1 / -1; }
   .admin-header { padding-inline: 22px; }
   .admin-email { display: none; }
   .admin-title-actions { align-items: flex-end; flex-direction: column; gap: 9px; }
@@ -3109,7 +3109,6 @@ img {
   .site-footer { margin-top: 0; }
   .footer-grid { grid-template-columns: 1fr 1fr; gap: 40px 25px; }
   .footer-brand { grid-column: 1 / -1; }
-  .footer-grid > div:last-child { grid-column: 1 / -1; }
   .footer-bottom { align-items: flex-start; flex-direction: column; justify-content: center; padding-block: 20px; }
   .toast { right: 12px; bottom: 12px; max-width: calc(100% - 24px); }
   .form-grid { grid-template-columns: 1fr; }

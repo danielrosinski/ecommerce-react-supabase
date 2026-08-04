@@ -95,7 +95,9 @@ export async function createProduct(product) {
 export async function deleteProduct(id) {
   if (!isSupabaseConfigured) return;
 
-  const { error } = await supabase.from("products").delete().eq("id", id);
+  const { error } = await supabase.rpc("delete_catalog_product", {
+    p_product_id: id,
+  });
 
   if (error) throw error;
 }

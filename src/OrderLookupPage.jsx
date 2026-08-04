@@ -22,6 +22,7 @@ const statusSteps = [
   { value: "preparing", label: "Em preparação" },
   { value: "shipped", label: "Saiu para entrega" },
   { value: "delivered", label: "Entregue" },
+  { value: "completed", label: "Finalizado" },
 ];
 
 const periodLabels = {
