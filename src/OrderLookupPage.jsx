@@ -42,6 +42,14 @@ function formatDate(value) {
   );
 }
 
+function formatDateTime(value) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 export default function OrderLookupPage() {
   const query = new URLSearchParams(window.location.search);
   const returnedFromPayment = query.get("pagamento") === "retorno";
@@ -100,6 +108,9 @@ export default function OrderLookupPage() {
   const currentIndex = order
     ? statusSteps.findIndex((step) => step.value === order.status)
     : -1;
+  const reservationActive = order?.reservation_expires_at
+    ? new Date(order.reservation_expires_at).getTime() > Date.now()
+    : true;
 
   useEffect(() => {
     if (order?.payment_provider !== "pagbank" || order.payment_status !== "pending" || !email) {
@@ -172,12 +183,20 @@ export default function OrderLookupPage() {
               <span className={`tracking-status status-${order.status}`}>
                 {order.status === "cancelled"
                   ? "Cancelado"
-                  : statusSteps.find((step) => step.value === order.status)?.label}
+                  : order.status === "expired"
+                    ? "Reserva expirada"
+                    : order.status === "payment_review"
+                      ? "Em análise pela loja"
+                      : statusSteps.find((step) => step.value === order.status)?.label}
               </span>
             </header>
 
             {order.status === "cancelled" ? (
               <div className="cancelled-note"><AlertCircle size={20} />Este pedido foi cancelado. Em caso de dúvida, fale conosco.</div>
+            ) : order.status === "expired" ? (
+              <div className="cancelled-note expired-note"><Clock3 size={20} />A reserva expirou sem pagamento e os produtos voltaram ao estoque. Faça um novo pedido para comprar.</div>
+            ) : order.status === "payment_review" ? (
+              <div className="cancelled-note review-note"><AlertCircle size={20} />O pagamento chegou após o encerramento da reserva. A loja fará a conferência e o reembolso, se necessário.</div>
             ) : (
               <ol className="order-timeline">
                 {statusSteps.map((step, index) => (
@@ -196,20 +215,24 @@ export default function OrderLookupPage() {
                   {order.payment_status === "approved" && "Pagamento aprovado"}
                   {order.payment_status === "pending" && "Pagamento pendente"}
                   {order.payment_status === "refused" && "Pagamento não aprovado"}
+                  {order.payment_status === "expired" && "Pagamento expirado"}
                   {order.payment_status === "refunded" && "Pagamento reembolsado"}
                   {order.payment_status === "simulated" && "Pagamento simulado"}
                 </strong>
                 <span>
                   {order.payment_status === "approved"
                     ? "O PagBank confirmou o recebimento."
+                    : order.payment_status === "expired"
+                      ? "O prazo de pagamento terminou e a reserva foi liberada."
                     : order.payment_provider === "pagbank"
                       ? "A confirmação pode levar alguns instantes após o pagamento."
                       : "Este pedido foi registrado antes da integração com o PagBank."}
                 </span>
               </div>
               {order.payment_provider === "pagbank" &&
-                !["approved", "refunded"].includes(order.payment_status) &&
-                !["cancelled", "completed"].includes(order.status) && (
+                !["approved", "expired", "refunded"].includes(order.payment_status) &&
+                !["cancelled", "expired", "completed", "payment_review"].includes(order.status) &&
+                reservationActive && (
                   <button type="button" onClick={continuePayment} disabled={paymentLoading}>
                     {paymentLoading ? <Loader2 className="spin" size={16} /> : <ExternalLink size={16} />}
                     Continuar pagamento
@@ -217,6 +240,9 @@ export default function OrderLookupPage() {
                 )}
             </div>
             {paymentError && <div className="tracking-error" role="alert"><AlertCircle size={18} />{paymentError}</div>}
+            {order.payment_status === "pending" && order.reservation_expires_at && reservationActive && (
+              <p className="reservation-deadline"><Clock3 size={16} /> Reserva de estoque válida até {formatDateTime(order.reservation_expires_at)}.</p>
+            )}
 
             <div className="tracking-details">
               <div><CalendarDays size={19} /><span>Data prevista<strong>{formatDate(order.delivery_date)}</strong></span></div>

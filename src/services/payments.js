@@ -27,3 +27,14 @@ export async function cancelPagBankCheckout(orderNumber, accessToken) {
   return parseResponse(response);
 }
 
+export async function refundPagBankPayment(orderNumber, accessToken) {
+  const response = await fetch("/api/pagbank/refund-payment", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ orderNumber }),
+  });
+  return parseResponse(response);
+}

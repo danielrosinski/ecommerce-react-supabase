@@ -4845,6 +4845,183 @@ body { background: #fcfaf5; }
   opacity: 0.65;
 }
 
+/* V10 · operação, reservas e reembolsos */
+.auth-success {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 12px;
+  border: 1px solid #bfd4ba;
+  background: #edf4eb;
+  color: #315d37;
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.auth-recovery-toggle {
+  justify-self: center;
+  color: var(--green-dark);
+}
+
+.admin-metrics .metric-currency {
+  font-size: clamp(1.65rem, 2.5vw, 2.35rem);
+}
+
+.stock-alert,
+.payment-review-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 24px;
+  border: 1px solid #dbcaa3;
+  padding: 14px 16px;
+  background: #fbf5e7;
+  color: #765c24;
+}
+
+.stock-alert > div,
+.payment-review-alert > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stock-alert strong,
+.payment-review-alert strong {
+  font-size: 0.78rem;
+}
+
+.stock-alert span,
+.payment-review-alert span {
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+
+.payment-review-alert {
+  border-color: #dfb8b0;
+  background: #faece9;
+  color: #934638;
+}
+
+.order-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(145px, 0.7fr));
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+  background: #fbf8f3;
+}
+
+.order-filters > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+
+.order-filters select,
+.order-search {
+  min-width: 0;
+  height: 42px;
+  border: 1px solid var(--line);
+  padding: 0 11px;
+  background: white;
+  color: var(--ink);
+  font-size: 0.7rem;
+}
+
+.order-search {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+  margin-top: 18px;
+}
+
+.order-search input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+}
+
+.status-expired {
+  border-color: #d8c59f;
+  background: #faf3e4;
+  color: #78612d;
+}
+
+.status-payment_review {
+  border-color: #dfb8b0;
+  background: #faece9;
+  color: #934638;
+}
+
+.refund-button {
+  width: fit-content;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+  border: 1px solid #d9b0a8;
+  border-radius: 7px;
+  padding: 0 10px;
+  background: #fff7f5;
+  color: #934638;
+  cursor: pointer;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.refund-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.payment-status-text.payment-expired,
+.tracking-payment.payment-expired {
+  background: #f3eee3;
+  color: #78612d;
+}
+
+.reservation-deadline {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  border-top: 1px dashed var(--line);
+  padding: 11px 20px;
+  background: #fbf8f3;
+  color: #78612d;
+  font-size: 0.67rem;
+}
+
+.cancelled-note.expired-note {
+  border-color: #dbcaa3;
+  background: #fbf5e7;
+  color: #765c24;
+}
+
+.cancelled-note.review-note {
+  border-color: #dfb8b0;
+  background: #faece9;
+  color: #934638;
+}
+
+@media (max-width: 960px) {
+  .order-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .order-search {
+    grid-column: 1 / -1;
+    margin-top: 0;
+  }
+}
+
 @media (max-width: 580px) {
   .tracking-payment {
     grid-template-columns: auto 1fr;
@@ -4854,6 +5031,14 @@ body { background: #fcfaf5; }
     grid-column: 1 / -1;
     justify-content: center;
     width: 100%;
+  }
+
+  .order-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .order-search {
+    grid-column: auto;
   }
 }
 .whatsapp-float { background: var(--green); }

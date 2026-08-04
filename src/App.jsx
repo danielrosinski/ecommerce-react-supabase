@@ -379,6 +379,7 @@ function Storefront({
             ...result,
             checkout_url: payment.checkoutUrl ?? "",
             payment_approved: Boolean(payment.approved),
+            reservation_expires_at: payment.reservationExpiresAt ?? "",
           };
         } catch (paymentError) {
           completedResult = {
@@ -989,7 +990,7 @@ function CheckoutModal({
               {result.payment_approved
                 ? "O pagamento já está aprovado e o pedido foi recebido."
                 : result.checkout_url
-                  ? "O pedido foi reservado. Conclua o pagamento no ambiente seguro do PagBank."
+                  ? "O pedido foi reservado por 30 minutos. Conclua o pagamento no ambiente seguro do PagBank."
                   : result.payment_error
                     ? "O pedido foi registrado, mas o checkout não pôde ser aberto. Consulte o pedido para tentar novamente."
                     : "O pedido foi salvo e o estoque já foi atualizado."}

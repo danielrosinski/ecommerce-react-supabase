@@ -1,7 +1,7 @@
 import {
-  getSupabaseAdmin,
   pagBankRequest,
   readRequestBody,
+  requireAdmin,
   sendApiError,
 } from "../../server/integrations.js";
 
@@ -13,24 +13,12 @@ export default async function handler(request, response) {
   }
 
   try {
-    const accessToken = request.headers.authorization?.replace(/^Bearer\s+/i, "");
     const { orderNumber } = readRequestBody(request);
-    if (!accessToken || !orderNumber) {
-      return response.status(401).json({ error: "Autenticação administrativa necessária." });
+    if (!orderNumber) {
+      return response.status(400).json({ error: "O número do pedido é obrigatório." });
     }
 
-    const supabase = getSupabaseAdmin();
-    const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
-    if (userError || !userData?.user) {
-      return response.status(401).json({ error: "Sessão administrativa inválida." });
-    }
-
-    const { data: admin } = await supabase
-      .from("admin_users")
-      .select("user_id")
-      .eq("user_id", userData.user.id)
-      .maybeSingle();
-    if (!admin) return response.status(403).json({ error: "Acesso administrativo negado." });
+    const { supabase } = await requireAdmin(request);
 
     const { data: order, error: orderError } = await supabase
       .from("orders")
@@ -39,9 +27,12 @@ export default async function handler(request, response) {
       .maybeSingle();
     if (orderError) throw orderError;
     if (!order) return response.status(404).json({ error: "Pedido não encontrado." });
+    if (["cancelled", "expired"].includes(order.status)) {
+      return response.status(200).json({ cancelled: true, reused: true });
+    }
     if (order.payment_status === "approved") {
       return response.status(409).json({
-        error: "O pagamento já foi aprovado. Faça o reembolso no PagBank antes de cancelar o pedido.",
+        error: "O pagamento já foi aprovado. Use a opção Reembolsar e cancelar.",
       });
     }
 
@@ -53,7 +44,11 @@ export default async function handler(request, response) {
 
     const { error: updateError } = await supabase
       .from("orders")
-      .update({ status: "cancelled", payment_status: "refused", payment_updated_at: new Date().toISOString() })
+      .update({
+        status: "cancelled",
+        payment_status: order.payment_status === "refunded" ? "refunded" : "refused",
+        payment_updated_at: new Date().toISOString(),
+      })
       .eq("id", order.id);
     if (updateError) throw updateError;
 
@@ -62,4 +57,3 @@ export default async function handler(request, response) {
     return sendApiError(response, error, "Não foi possível cancelar o checkout do PagBank.");
   }
 }
-

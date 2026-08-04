@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -19,6 +19,8 @@ import {
   Plus,
   PlusCircle,
   RefreshCw,
+  RotateCcw,
+  Search,
   Settings,
   ShieldCheck,
   Tag,
@@ -29,7 +31,7 @@ import {
 import { formatCurrency } from "./data";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import { loadOrders, updateOrderStatus } from "./services/orders";
-import { cancelPagBankCheckout } from "./services/payments";
+import { cancelPagBankCheckout, refundPagBankPayment } from "./services/payments";
 import {
   createProduct,
   deleteProduct,
@@ -57,13 +59,16 @@ const orderStatuses = [
   { value: "delivered", label: "Entregue" },
   { value: "completed", label: "Finalizado" },
   { value: "cancelled", label: "Cancelado" },
+  { value: "expired", label: "Reserva expirada", system: true },
+  { value: "payment_review", label: "Revisar pagamento", system: true },
 ];
 
 const paymentStatuses = {
   simulated: { label: "Simulado", detail: "Pedido anterior, sem cobrança real" },
   pending: { label: "Pendente", detail: "Aguardando confirmação do PagBank" },
   approved: { label: "Aprovado", detail: "Pagamento confirmado pelo PagBank" },
-  refused: { label: "Não aprovado", detail: "Pagamento recusado, cancelado ou expirado" },
+  refused: { label: "Não aprovado", detail: "Pagamento recusado; a reserva continua até o prazo" },
+  expired: { label: "Expirado", detail: "Prazo encerrado e estoque devolvido" },
   refunded: { label: "Reembolsado", detail: "Valor devolvido pelo PagBank" },
 };
 
@@ -78,6 +83,9 @@ function AdminPage({ products, setProducts, reloadProducts }) {
   const [authLoading, setAuthLoading] = useState(isSupabaseConfigured);
   const [isAdmin, setIsAdmin] = useState(!isSupabaseConfigured);
   const [accessError, setAccessError] = useState("");
+  const [passwordRecovery, setPasswordRecovery] = useState(
+    new URLSearchParams(window.location.search).get("recuperar") === "1",
+  );
 
   useEffect(() => {
     if (!isSupabaseConfigured) return undefined;
@@ -117,7 +125,8 @@ function AdminPage({ products, setProducts, reloadProducts }) {
     };
 
     supabase.auth.getSession().then(({ data }) => checkAccess(data.session));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
       setAuthLoading(true);
       window.setTimeout(() => checkAccess(nextSession), 0);
     });
@@ -142,6 +151,17 @@ function AdminPage({ products, setProducts, reloadProducts }) {
         email={session?.user?.email}
         message={accessError}
         onSignOut={() => supabase.auth.signOut()}
+      />
+    );
+  }
+
+  if (isSupabaseConfigured && session && passwordRecovery) {
+    return (
+      <AdminPasswordReset
+        onComplete={() => {
+          window.history.replaceState({}, "", "/admin");
+          setPasswordRecovery(false);
+        }}
       />
     );
   }
@@ -173,13 +193,30 @@ function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setLoading(true);
     setError("");
+    setMessage("");
+
+    if (recoveryMode) {
+      const { error: recoveryError } = await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+        { redirectTo: `${window.location.origin}/admin?recuperar=1` },
+      );
+      if (recoveryError) {
+        setError("Não foi possível enviar o link. Verifique o e-mail e tente novamente.");
+      } else {
+        setMessage("Enviamos um link para redefinir a senha. Confira também a caixa de spam.");
+      }
+      setLoading(false);
+      return;
+    }
 
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: email.trim(),
@@ -202,10 +239,11 @@ function AdminLogin() {
         <section className="admin-auth-card" aria-labelledby="admin-login-title">
           <div className="auth-icon"><LockKeyhole size={25} /></div>
           <span className="eyebrow">Acesso protegido</span>
-          <h1 id="admin-login-title">Painel administrativo</h1>
-          <p>Entre com o usuário administrador cadastrado no banco de dados.</p>
+          <h1 id="admin-login-title">{recoveryMode ? "Recuperar senha" : "Painel administrativo"}</h1>
+          <p>{recoveryMode ? "Informe o e-mail administrador para receber o link de recuperação." : "Entre com o usuário administrador cadastrado no banco de dados."}</p>
 
           {error && <div className="auth-error" role="alert"><AlertCircle size={17} />{error}</div>}
+          {message && <div className="auth-success" role="status"><Check size={17} />{message}</div>}
 
           <form onSubmit={handleSubmit}>
             <label>
@@ -219,29 +257,44 @@ function AdminLogin() {
                 placeholder="admin@sualoja.com"
               />
             </label>
-            <label>
-              Senha
-              <span className="password-field">
-                <input
-                  required
-                  minLength="6"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Sua senha"
-                />
-                <button
-                  type="button"
-                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                  onClick={() => setShowPassword((current) => !current)}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </span>
-            </label>
+            {!recoveryMode && (
+              <label>
+                Senha
+                <span className="password-field">
+                  <input
+                    required
+                    minLength="6"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Sua senha"
+                  />
+                  <button
+                    type="button"
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    onClick={() => setShowPassword((current) => !current)}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </span>
+              </label>
+            )}
             <button className="primary-button auth-submit" type="submit" disabled={loading}>
-              {loading ? <><RefreshCw className="spin" size={17} /> Entrando...</> : "Entrar no painel"}
+              {loading
+                ? <><RefreshCw className="spin" size={17} /> Aguarde...</>
+                : recoveryMode ? "Enviar link de recuperação" : "Entrar no painel"}
+            </button>
+            <button
+              className="text-button auth-recovery-toggle"
+              type="button"
+              onClick={() => {
+                setRecoveryMode((current) => !current);
+                setError("");
+                setMessage("");
+              }}
+            >
+              {recoveryMode ? "Voltar para o login" : "Esqueci minha senha"}
             </button>
           </form>
 
@@ -249,6 +302,58 @@ function AdminLogin() {
             <ShieldCheck size={18} />
             <span>As permissões são verificadas no banco, não apenas na tela.</span>
           </div>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function AdminPasswordReset({ onComplete }) {
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+    if (password.length < 8) {
+      setError("A nova senha deve ter pelo menos 8 caracteres.");
+      return;
+    }
+    if (password !== confirmation) {
+      setError("As senhas informadas não são iguais.");
+      return;
+    }
+
+    setLoading(true);
+    const { error: updateError } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (updateError) {
+      setError("Não foi possível atualizar a senha. Solicite um novo link.");
+      return;
+    }
+    onComplete();
+  };
+
+  return (
+    <div className="admin-auth-page">
+      <header className="admin-auth-header">
+        <a className="logo floral-logo" href="/">ROSINSKI <small>Floricultura</small></a>
+      </header>
+      <main className="admin-auth-main">
+        <section className="admin-auth-card" aria-labelledby="password-reset-title">
+          <div className="auth-icon"><LockKeyhole size={25} /></div>
+          <span className="eyebrow">Acesso protegido</span>
+          <h1 id="password-reset-title">Crie uma nova senha</h1>
+          <p>Use pelo menos 8 caracteres e evite repetir senhas de outros serviços.</p>
+          {error && <div className="auth-error" role="alert"><AlertCircle size={17} />{error}</div>}
+          <form onSubmit={handleSubmit}>
+            <label>Nova senha<span className="password-field"><input required minLength="8" type={showPassword ? "text" : "password"} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /><button type="button" aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} onClick={() => setShowPassword((current) => !current)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span></label>
+            <label>Confirmar senha<input required minLength="8" type={showPassword ? "text" : "password"} autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label>
+            <button className="primary-button auth-submit" type="submit" disabled={loading}>{loading ? <><RefreshCw className="spin" size={17} /> Salvando...</> : "Salvar nova senha"}</button>
+          </form>
         </section>
       </main>
     </div>
@@ -292,6 +397,10 @@ function InventoryManager({
   const [ordersLoading, setOrdersLoading] = useState(connected);
   const [ordersError, setOrdersError] = useState("");
   const [savingOrderId, setSavingOrderId] = useState(null);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderStatusFilter, setOrderStatusFilter] = useState("all");
+  const [paymentFilter, setPaymentFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
   const [productEditor, setProductEditor] = useState(null);
   const [productSaving, setProductSaving] = useState(false);
 
@@ -300,9 +409,32 @@ function InventoryManager({
     (product) => product.stock > 0 && product.stock <= 3,
   ).length;
   const outOfStock = products.filter((product) => product.stock === 0).length;
-  const confirmedOrders = orders.filter((order) => order.status === "confirmed").length;
-  const preparingOrders = orders.filter((order) => order.status === "preparing").length;
-  const shippedOrders = orders.filter((order) => order.status === "shipped").length;
+  const lowStockProducts = products.filter((product) => product.active && product.stock <= 3);
+  const paidRevenue = orders
+    .filter((order) => order.payment_status === "approved")
+    .reduce((sum, order) => sum + order.total, 0);
+  const pendingPayments = orders.filter((order) => order.payment_status === "pending").length;
+  const expiredPayments = orders.filter((order) => order.payment_status === "expired").length;
+  const reviewPayments = orders.filter((order) => order.status === "payment_review").length;
+
+  const filteredOrders = useMemo(() => {
+    const normalizedSearch = orderSearch.trim().toLowerCase();
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+    return orders.filter((order) => {
+      const searchable = `${order.order_number} ${order.customer_name} ${order.customer_email}`.toLowerCase();
+      if (normalizedSearch && !searchable.includes(normalizedSearch)) return false;
+      if (orderStatusFilter !== "all" && order.status !== orderStatusFilter) return false;
+      if (paymentFilter !== "all" && order.payment_status !== paymentFilter) return false;
+
+      const createdAt = new Date(order.created_at).getTime();
+      if (dateFilter === "today" && createdAt < startOfToday) return false;
+      if (dateFilter === "7days" && createdAt < now.getTime() - 7 * 86400000) return false;
+      if (dateFilter === "30days" && createdAt < now.getTime() - 30 * 86400000) return false;
+      return true;
+    });
+  }, [orders, orderSearch, orderStatusFilter, paymentFilter, dateFilter]);
 
   const refreshOrders = async () => {
     if (!connected) {
@@ -454,8 +586,43 @@ function InventoryManager({
     }
   };
 
+  const handleRefundOrder = async (order) => {
+    if (
+      !window.confirm(
+        `Reembolsar ${formatCurrency(order.total)} e cancelar ${order.order_number}? O valor será devolvido pelo PagBank e as unidades retornarão ao estoque.`,
+      )
+    ) {
+      return;
+    }
+
+    setSavingOrderId(order.id);
+    try {
+      await refundPagBankPayment(order.order_number, accessToken);
+      await Promise.all([refreshOrders(), reloadProducts()]);
+      setStatus({
+        type: "success",
+        message: "Pagamento reembolsado, pedido cancelado e estoque restaurado.",
+      });
+    } catch (error) {
+      setStatus({
+        type: "error",
+        message: error.message || "Não foi possível reembolsar o pagamento.",
+      });
+    } finally {
+      setSavingOrderId(null);
+    }
+  };
+
   const handleOrderStatus = async (order, nextStatus) => {
     if (order.status === nextStatus) return;
+    if (
+      nextStatus === "cancelled" &&
+      order.payment_provider === "pagbank" &&
+      order.payment_status === "approved"
+    ) {
+      await handleRefundOrder(order);
+      return;
+    }
     if (
       nextStatus === "cancelled" &&
       !window.confirm(
@@ -619,6 +786,16 @@ function InventoryManager({
               <div><span>Sem estoque</span><strong>{outOfStock}</strong></div>
             </div>
 
+            {lowStockProducts.length > 0 && (
+              <div className="stock-alert" role="status">
+                <AlertCircle size={20} />
+                <div>
+                  <strong>Atenção ao estoque</strong>
+                  <span>{lowStockProducts.map((product) => `${product.name} (${product.stock})`).join(" · ")}</span>
+                </div>
+              </div>
+            )}
+
             <section className="inventory-table-wrap" aria-labelledby="inventory-title">
               <div className="inventory-heading">
                 <div>
@@ -775,10 +952,17 @@ function InventoryManager({
           <>
             <div className="admin-metrics order-metrics">
               <div><span>Total de pedidos</span><strong>{orders.length}</strong></div>
-              <div><span>Confirmados</span><strong>{confirmedOrders}</strong></div>
-              <div><span>Em preparação</span><strong>{preparingOrders}</strong></div>
-              <div><span>Saiu para entrega</span><strong>{shippedOrders}</strong></div>
+              <div><span>Faturamento aprovado</span><strong className="metric-currency">{formatCurrency(paidRevenue)}</strong></div>
+              <div><span>Pagamentos pendentes</span><strong>{pendingPayments}</strong></div>
+              <div><span>Expirados</span><strong>{expiredPayments}</strong></div>
             </div>
+
+            {reviewPayments > 0 && (
+              <div className="payment-review-alert" role="alert">
+                <AlertCircle size={20} />
+                <div><strong>{reviewPayments} pagamento(s) precisam de revisão</strong><span>O pagamento chegou depois que a reserva de estoque foi liberada. Confira e faça o reembolso.</span></div>
+              </div>
+            )}
 
             <section className="orders-wrap" aria-labelledby="orders-title">
               <div className="inventory-heading">
@@ -786,7 +970,14 @@ function InventoryManager({
                   <h2 id="orders-title">Pedidos recentes</h2>
                   <p>Acompanhe clientes, itens, entrega e andamento.</p>
                 </div>
-                <span>{orders.length} registrados</span>
+                <span>{filteredOrders.length} de {orders.length}</span>
+              </div>
+
+              <div className="order-filters" aria-label="Filtros de pedidos">
+                <label className="order-search"><Search size={17} /><input type="search" value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="Pedido, cliente ou e-mail" /></label>
+                <label><span>Situação</span><select value={orderStatusFilter} onChange={(event) => setOrderStatusFilter(event.target.value)}><option value="all">Todas</option>{orderStatuses.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                <label><span>Pagamento</span><select value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)}><option value="all">Todos</option>{Object.entries(paymentStatuses).map(([value, option]) => <option key={value} value={value}>{option.label}</option>)}</select></label>
+                <label><span>Período</span><select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}><option value="all">Todo o período</option><option value="today">Hoje</option><option value="7days">Últimos 7 dias</option><option value="30days">Últimos 30 dias</option></select></label>
               </div>
 
               {ordersLoading ? (
@@ -806,9 +997,15 @@ function InventoryManager({
                   <h3>Nenhum pedido recebido</h3>
                   <p>Os novos pedidos aparecerão aqui automaticamente.</p>
                 </div>
+              ) : filteredOrders.length === 0 ? (
+                <div className="orders-state">
+                  <Search size={28} />
+                  <h3>Nenhum pedido encontrado</h3>
+                  <p>Altere os filtros para visualizar outros pedidos.</p>
+                </div>
               ) : (
                 <div className="orders-list">
-                  {orders.map((order) => (
+                  {filteredOrders.map((order) => (
                     <article className="order-card" key={order.id}>
                       <header className="order-card-header">
                         <div>
@@ -825,17 +1022,21 @@ function InventoryManager({
                             disabled={
                               savingOrderId === order.id ||
                               order.status === "cancelled" ||
-                              order.status === "completed"
+                              order.status === "completed" ||
+                              order.status === "expired" ||
+                              order.status === "payment_review"
                             }
                             onChange={(event) =>
                               handleOrderStatus(order, event.target.value)
                             }
                           >
-                            {orderStatuses.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
+                            {orderStatuses.map((option) =>
+                              option.system && option.value !== order.status ? null : (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ),
+                            )}
                           </select>
                         </label>
                       </header>
@@ -871,6 +1072,19 @@ function InventoryManager({
                             {paymentStatuses[order.payment_status]?.label ?? "Pendente"}
                           </strong>
                           <span>{paymentStatuses[order.payment_status]?.detail ?? "Aguardando atualização"}</span>
+                          {order.payment_provider === "pagbank" &&
+                            order.payment_status === "approved" &&
+                            order.status !== "completed" &&
+                            order.status !== "cancelled" && (
+                              <button
+                                className="refund-button"
+                                type="button"
+                                disabled={savingOrderId === order.id}
+                                onClick={() => handleRefundOrder(order)}
+                              >
+                                <RotateCcw size={15} /> Reembolsar e cancelar
+                              </button>
+                            )}
                         </section>
                       </div>
 

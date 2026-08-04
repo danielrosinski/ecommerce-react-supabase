@@ -13,6 +13,41 @@ export function getSupabaseAdmin() {
   });
 }
 
+export async function requireAdmin(request) {
+  const accessToken = request.headers.authorization?.replace(/^Bearer\s+/i, "");
+  if (!accessToken) {
+    const error = new Error("Autenticação administrativa necessária.");
+    error.statusCode = 401;
+    error.publicMessage = error.message;
+    throw error;
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+  if (userError || !userData?.user) {
+    const error = new Error("Sessão administrativa inválida.");
+    error.statusCode = 401;
+    error.publicMessage = error.message;
+    throw error;
+  }
+
+  const { data: admin, error: adminError } = await supabase
+    .from("admin_users")
+    .select("user_id")
+    .eq("user_id", userData.user.id)
+    .maybeSingle();
+
+  if (adminError) throw adminError;
+  if (!admin) {
+    const error = new Error("Acesso administrativo negado.");
+    error.statusCode = 403;
+    error.publicMessage = error.message;
+    throw error;
+  }
+
+  return { supabase, user: userData.user };
+}
+
 export function getPagBankConfig() {
   const token = process.env.PAGBANK_TOKEN;
   const apiUrl = (process.env.PAGBANK_API_URL || "https://sandbox.api.pagseguro.com")
@@ -79,4 +114,3 @@ export function sendApiError(response, error, fallbackMessage) {
     : 500;
   response.status(status).json({ error: error?.publicMessage || fallbackMessage });
 }
-

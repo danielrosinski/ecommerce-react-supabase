@@ -25,6 +25,8 @@ O projeto conecta a vitrine ao Supabase para que produtos, estoque, pedidos, per
 - Acompanhamento público por número do pedido e e-mail
 - Pagamento por Pix ou cartão no Checkout PagBank
 - Retorno ao site e acompanhamento do status do pagamento
+- Reserva de estoque com validade de 30 minutos
+- Liberação automática de itens quando o pagamento expira
 
 ### Painel administrativo
 
@@ -36,9 +38,14 @@ O projeto conecta a vitrine ao Supabase para que produtos, estoque, pedidos, per
 - Gestão de cupons e limites de utilização
 - Visualização dos pedidos e atualização de status
 - Situação financeira atualizada por notificações do PagBank
+- Filtros por pedido, cliente, período, andamento e pagamento
+- Resumo de faturamento aprovado e pagamentos pendentes
+- Alertas de estoque baixo e pagamentos que exigem revisão
+- Cancelamento de checkout pendente e reembolso de pagamento aprovado
 - Finalização de pedidos com preservação do histórico
-- Restauração automática do estoque em cancelamentos
-- Exclusão segura de produtos ligados apenas a pedidos cancelados ou finalizados
+- Restauração automática do estoque em cancelamentos, expirações e reembolsos
+- Exclusão segura de produtos ligados apenas a pedidos cancelados, expirados ou finalizados
+- Recuperação de senha administrativa pelo Supabase Auth
 
 ### Segurança
 
@@ -48,6 +55,8 @@ O projeto conecta a vitrine ao Supabase para que produtos, estoque, pedidos, per
 - Registro do pedido e redução de estoque em uma única transação
 - Credenciais privadas não são expostas no navegador
 - Webhooks validados novamente na API oficial antes de atualizar o pedido
+- Validade do pedido sincronizada entre PagBank e Supabase Cron
+- Proteção contra confirmação tardia após a liberação do estoque
 
 ## Tecnologias
 
@@ -79,10 +88,15 @@ supabase/
 ├── v7-catalogo.sql
 ├── v8-loja.sql
 ├── v8-1-ajustes.sql
-└── v9-pagbank.sql
+├── v9-pagbank.sql
+└── v10-operacao.sql
 
 api/
 └── pagbank/
+    ├── create-checkout.js
+    ├── cancel-checkout.js
+    ├── refund-payment.js
+    └── webhook.js
 ```
 
 ## Execução local
@@ -94,9 +108,15 @@ npm run dev
 
 As variáveis públicas e privadas necessárias estão documentadas em `.env.example`. As variáveis privadas devem ser configuradas somente no ambiente da Vercel e nunca podem receber o prefixo `VITE_`.
 
+## Atualização do banco
+
+Projetos que já utilizam a V9 devem executar `supabase/v10-operacao.sql` no SQL Editor. A migração preserva produtos e pedidos existentes, habilita o Supabase Cron e agenda a verificação das reservas a cada cinco minutos.
+
+Para a recuperação de senha, o domínio da aplicação deve estar autorizado em **Authentication > URL Configuration** no Supabase.
+
 ## Status
 
-O fluxo de compra, o estoque e os pedidos estão funcionais. A V9 integra o Checkout PagBank em Sandbox para validar Pix, cartão, retorno ao site e notificações antes da homologação para produção.
+O fluxo de compra, o estoque e os pedidos estão funcionais. A V10 mantém o Checkout PagBank em Sandbox e acrescenta expiração de reservas, devolução de estoque, reembolsos e ferramentas operacionais antes da homologação para produção.
 
 ## Autor
 
