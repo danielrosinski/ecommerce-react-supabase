@@ -1,8 +1,16 @@
-# ROSINSKI — floricultura digital V5
+# ROSINSKI — floricultura digital V6
 
 E-commerce responsivo de floricultura desenvolvido com React, Vite e Supabase, preparado para publicação gratuita na Vercel.
 
 ## O que funciona nesta versão
+
+### Revisão visual da V6
+
+- Cabeçalho redistribuído para impedir sobreposição entre logo e busca
+- Catálogo reposicionado como primeiro conteúdo da página
+- Apresentação da floricultura movida para depois dos produtos
+- Paleta reforçada em terracota e palha, com menos áreas brancas
+- Nenhuma nova atualização SQL em relação à V5
 
 ### Loja
 
@@ -35,6 +43,14 @@ E-commerce responsivo de floricultura desenvolvido com React, Vite e Supabase, p
 - Consulta protegida pelo número do pedido e e-mail da compra
 - Linha do tempo do andamento, data, período, destinatário, itens e total
 - O endereço completo e os dados administrativos não são expostos
+
+## Atualizar da V5 para a V6
+
+A V6 altera somente a apresentação visual. Não execute outro arquivo SQL.
+
+1. Copie o `.env.local` da V5 para a pasta V6.
+2. Execute `npm install` e `npm run dev`.
+3. Confira o cabeçalho, o catálogo no topo e a responsividade.
 
 ## Atualizar da V4 para a V5
 

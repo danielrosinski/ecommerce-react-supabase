@@ -390,45 +390,6 @@ function Storefront({
       </header>
 
       <main>
-        <section className="hero shell" aria-labelledby="hero-title">
-          <div className="hero-copy">
-            <span className="eyebrow">Floricultura em Guaratuba</span>
-            <h1 id="hero-title">Flores que dizem o que importa.</h1>
-            <p>
-              Buquês e plantas escolhidos com delicadeza para celebrar,
-              acolher e transformar pequenos momentos em boas lembranças.
-            </p>
-            <button
-              className="primary-button"
-              type="button"
-              onClick={() => document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" })}
-            >
-              Escolher flores <ArrowRight size={18} />
-            </button>
-          </div>
-          <div className="hero-image" role="img" aria-label="Buquê delicado em tons naturais">
-            <div className="hero-note">
-              <Sparkles size={16} />
-              <span>Preparado à mão para cada ocasião</span>
-            </div>
-          </div>
-        </section>
-
-        <section className="trust-strip shell" aria-label="Benefícios da loja">
-          <div>
-            <Truck size={22} />
-            <span><strong>Entrega local</strong> calculada em Guaratuba</span>
-          </div>
-          <div>
-            <ShieldCheck size={22} />
-            <span><strong>Pedido acompanhado</strong> do preparo à entrega</span>
-          </div>
-          <div>
-            <PackageCheck size={22} />
-            <span><strong>Retirada disponível</strong> sem taxa de entrega</span>
-          </div>
-        </section>
-
         <section className="catalog shell" id="catalogo" aria-labelledby="catalog-title">
           <div className="section-heading">
             <div>
@@ -487,6 +448,45 @@ function Storefront({
               </button>
             </div>
           )}
+        </section>
+
+        <section className="trust-strip shell" aria-label="Benefícios da loja">
+          <div>
+            <Truck size={22} />
+            <span><strong>Entrega local</strong> calculada em Guaratuba</span>
+          </div>
+          <div>
+            <ShieldCheck size={22} />
+            <span><strong>Pedido acompanhado</strong> do preparo à entrega</span>
+          </div>
+          <div>
+            <PackageCheck size={22} />
+            <span><strong>Retirada disponível</strong> sem taxa de entrega</span>
+          </div>
+        </section>
+
+        <section className="hero shell" aria-labelledby="hero-title">
+          <div className="hero-copy">
+            <span className="eyebrow">Floricultura em Guaratuba</span>
+            <h1 id="hero-title">Flores que dizem o que importa.</h1>
+            <p>
+              Buquês e plantas escolhidos com delicadeza para celebrar,
+              acolher e transformar pequenos momentos em boas lembranças.
+            </p>
+            <button
+              className="outline-button"
+              type="button"
+              onClick={() => document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" })}
+            >
+              Voltar ao catálogo <ArrowRight size={18} />
+            </button>
+          </div>
+          <div className="hero-image" role="img" aria-label="Buquê delicado em tons naturais">
+            <div className="hero-note">
+              <Sparkles size={16} />
+              <span>Preparado à mão para cada ocasião</span>
+            </div>
+          </div>
         </section>
 
         <section className="editorial-banner shell">
