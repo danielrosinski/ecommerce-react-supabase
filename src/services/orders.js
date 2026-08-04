@@ -13,6 +13,15 @@ const orderColumns = `
   neighborhood,
   city,
   state,
+  delivery_method,
+  recipient_name,
+  recipient_phone,
+  delivery_date,
+  delivery_period,
+  occasion,
+  gift_message,
+  anonymous_delivery,
+  delivery_instructions,
   subtotal,
   shipping,
   total,
@@ -49,15 +58,15 @@ function normalizeOrder(order) {
   };
 }
 
-function createDemoOrder(cart, products) {
+function createDemoOrder(customer, cart, products) {
   const subtotal = cart.reduce((sum, item) => {
     const product = products.find((candidate) => candidate.id === item.id);
     return sum + (product?.price ?? 0) * item.quantity;
   }, 0);
-  const shipping = subtotal >= 299 ? 0 : 24.9;
+  const shipping = customer.delivery_method === "pickup" ? 0 : 14.9;
 
   return {
-    order_number: `NOVA-DEMO-${String(Date.now()).slice(-6)}`,
+    order_number: `ROSINSKI-DEMO-${String(Date.now()).slice(-6)}`,
     subtotal,
     shipping,
     total: subtotal + shipping,
@@ -68,7 +77,7 @@ function createDemoOrder(cart, products) {
 
 export async function createOrder({ customer, cart, products }) {
   if (!isSupabaseConfigured) {
-    return createDemoOrder(cart, products);
+    return createDemoOrder(customer, cart, products);
   }
 
   const items = cart.map((item) => ({
@@ -116,4 +125,29 @@ export async function updateOrderStatus(id, status) {
 
   if (error) throw error;
   return normalizeOrder(data);
+}
+
+export async function lookupOrder(orderNumber, email) {
+  if (!isSupabaseConfigured) {
+    throw new Error("A consulta de pedidos requer a conexão com o Supabase.");
+  }
+
+  const { data, error } = await supabase.rpc("lookup_order", {
+    p_order_number: orderNumber.trim(),
+    p_email: email.trim().toLowerCase(),
+  });
+
+  if (error) throw error;
+  const result = Array.isArray(data) ? data[0] : data;
+
+  if (!result) {
+    throw new Error("Pedido não encontrado. Confira o número e o e-mail informado na compra.");
+  }
+
+  return {
+    ...result,
+    shipping: Number(result.shipping ?? 0),
+    total: Number(result.total ?? 0),
+    items: Array.isArray(result.items) ? result.items : [],
+  };
 }

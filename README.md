@@ -1,18 +1,20 @@
-# NOVA — e-commerce editorial V4
+# ROSINSKI — floricultura digital V5
 
-E-commerce responsivo desenvolvido com React, Vite e Supabase, preparado para publicação gratuita na Vercel.
+E-commerce responsivo de floricultura desenvolvido com React, Vite e Supabase, preparado para publicação gratuita na Vercel.
 
 ## O que funciona nesta versão
 
 ### Loja
 
 - Catálogo com busca, categorias, ordenação e favoritos
-- Carrinho com quantidades, validação de estoque e frete progressivo
-- Checkout com dados do cliente e endereço de entrega
+- Carrinho com quantidades e validação de estoque
+- Checkout adaptado para floricultura: destinatário, telefone, data e período
+- Escolha entre entrega local em Guaratuba ou retirada
+- Ocasião, mensagem para o cartão, entrega anônima e instruções
 - Preenchimento automático de rua, bairro, cidade e estado pelo CEP
 - Registro permanente dos pedidos no Supabase
 - Número exclusivo para cada pedido
-- Frete grátis acima de R$ 299 e frete demonstrativo de R$ 24,90 abaixo desse valor
+- Taxa demonstrativa de entrega de R$ 14,90 e retirada gratuita
 - Baixa automática e segura do estoque
 - Pagamento simulado, sem cobrança real
 
@@ -23,24 +25,35 @@ E-commerce responsivo desenvolvido com React, Vite e Supabase, preparado para pu
 - Cadastro e edição completa de produtos com prévia da imagem
 - Exclusão protegida de produtos que não possuem histórico de pedidos
 - Lista de pedidos com cliente, endereço, itens e valores
-- Atualização de status: confirmado, em separação, enviado, entregue ou cancelado
+- Atualização de status: recebido, confirmado, em preparação, saiu para entrega, entregue ou cancelado
 - Restauração automática do estoque quando um pedido é cancelado
 - Políticas de segurança no banco de dados
 
-## Atualizar da V3 para a V4
+### Consulta do cliente
 
-Esta versão não exige uma nova atualização SQL.
+- Página pública em `/pedido`
+- Consulta protegida pelo número do pedido e e-mail da compra
+- Linha do tempo do andamento, data, período, destinatário, itens e total
+- O endereço completo e os dados administrativos não são expostos
 
-1. Copie o arquivo `.env.local` da V3 para a pasta V4.
-2. Execute:
+## Atualizar da V4 para a V5
+
+Esta versão exige uma atualização SQL para os campos florais e a consulta segura.
+
+1. No Supabase, abra **SQL Editor**.
+2. Abra `supabase/v5-floricultura.sql`, copie todo o conteúdo e execute uma única vez.
+3. Copie o arquivo `.env.local` da V4 para a pasta V5.
+4. Execute:
 
 ```bash
 npm install
 npm run dev
 ```
 
-3. Teste o preenchimento do CEP no checkout.
-4. Em `/admin`, use **Novo produto** para testar o cadastro.
+5. Faça um pedido de teste com data e destinatário.
+6. Consulte o pedido em `http://localhost:5173/pedido`.
+
+O SQL converte somente os produtos demonstrativos originais da NOVA. Produtos cadastrados pelo administrador não são modificados.
 
 ## Atualizar uma V2 para pedidos
 
@@ -71,7 +84,7 @@ Não é necessário cadastrar chave de API nem adicionar uma variável na Vercel
 ## Instalação nova
 
 1. Crie um projeto gratuito em `https://supabase.com`.
-2. No **SQL Editor**, execute todo o arquivo `supabase/schema.sql`.
+2. No **SQL Editor**, execute `supabase/schema.sql` e depois `supabase/v5-floricultura.sql`.
 3. Em **Authentication > Users**, crie o usuário administrador.
 4. Copie o UUID do usuário.
 5. No SQL Editor, execute:
@@ -130,11 +143,13 @@ nova-ecommerce/
 │   │   └── products.js
 │   ├── AdminPage.jsx
 │   ├── App.jsx
+│   ├── OrderLookupPage.jsx
 │   ├── data.js
 │   └── styles.css
 ├── supabase/
 │   ├── schema.sql
-│   └── v3-orders.sql
+│   ├── v3-orders.sql
+│   └── v5-floricultura.sql
 ├── .env.example
 ├── package.json
 └── vercel.json
@@ -142,4 +157,4 @@ nova-ecommerce/
 
 ## Próxima evolução
 
-O pagamento ainda é simulado. A próxima etapa poderá integrar Mercado Pago ou Stripe por uma função segura no servidor, sem expor chaves privadas no navegador.
+O pagamento ainda é simulado. A próxima etapa poderá integrar Mercado Pago ou Stripe por uma função segura no servidor, sem expor chaves privadas no navegador. A taxa local de R$ 14,90 também poderá ser substituída por uma tabela de bairros definida pela floricultura.

@@ -34,9 +34,10 @@ import {
 } from "./services/products";
 
 const orderStatuses = [
+  { value: "received", label: "Pedido recebido" },
   { value: "confirmed", label: "Confirmado" },
-  { value: "preparing", label: "Em separação" },
-  { value: "shipped", label: "Enviado" },
+  { value: "preparing", label: "Em preparação" },
+  { value: "shipped", label: "Saiu para entrega" },
   { value: "delivered", label: "Entregue" },
   { value: "cancelled", label: "Cancelado" },
 ];
@@ -168,7 +169,7 @@ function AdminLogin() {
   return (
     <div className="admin-auth-page">
       <header className="admin-auth-header">
-        <a className="logo" href="/">NOVA</a>
+        <a className="logo floral-logo" href="/">ROSINSKI <small>Floricultura</small></a>
         <a className="outline-button" href="/"><ArrowLeft size={17} /> Voltar à loja</a>
       </header>
       <main className="admin-auth-main">
@@ -464,7 +465,7 @@ function InventoryManager({
   return (
     <div className="admin-page">
       <header className="admin-header">
-        <a className="logo" href="/">NOVA</a>
+        <a className="logo floral-logo" href="/">ROSINSKI <small>Floricultura</small></a>
         <div>
           <span className={`database-status ${connected ? "connected" : "demo"}`}>
             <Database size={15} /> {connected ? "Banco conectado" : "Modo demonstração"}
@@ -724,8 +725,8 @@ function InventoryManager({
             <div className="admin-metrics order-metrics">
               <div><span>Total de pedidos</span><strong>{orders.length}</strong></div>
               <div><span>Confirmados</span><strong>{confirmedOrders}</strong></div>
-              <div><span>Em separação</span><strong>{preparingOrders}</strong></div>
-              <div><span>Enviados</span><strong>{shippedOrders}</strong></div>
+              <div><span>Em preparação</span><strong>{preparingOrders}</strong></div>
+              <div><span>Saiu para entrega</span><strong>{shippedOrders}</strong></div>
             </div>
 
             <section className="orders-wrap" aria-labelledby="orders-title">
@@ -800,17 +801,17 @@ function InventoryManager({
                         </section>
                         <section>
                           <h4>Entrega</h4>
-                          <address>
-                            <MapPin size={15} />
-                            <span>
-                              {order.address_line}, {order.address_number}
-                              {order.complement ? ` · ${order.complement}` : ""}
-                              <br />
-                              {order.neighborhood} · {order.city}/{order.state}
-                              <br />
-                              CEP {order.postal_code}
-                            </span>
-                          </address>
+                          <strong>{order.recipient_name || order.customer_name}</strong>
+                          {order.recipient_phone && <a href={`tel:${order.recipient_phone}`}><Phone size={14} /> {order.recipient_phone}</a>}
+                          {order.delivery_method === "pickup" ? (
+                            <span>Retirada na floricultura</span>
+                          ) : (
+                            <address>
+                              <MapPin size={15} />
+                              <span>{order.address_line}, {order.address_number}{order.complement ? ` · ${order.complement}` : ""}<br />{order.neighborhood} · {order.city}/{order.state}<br />CEP {order.postal_code}</span>
+                            </address>
+                          )}
+                          <span>{order.delivery_date ? new Intl.DateTimeFormat("pt-BR").format(new Date(`${order.delivery_date}T12:00:00`)) : "Data a combinar"} · {order.delivery_period || "horário flexível"}</span>
                         </section>
                         <section>
                           <h4>Pagamento</h4>
@@ -818,6 +819,14 @@ function InventoryManager({
                           <span>Nenhuma cobrança realizada</span>
                         </section>
                       </div>
+
+                      {(order.gift_message || order.delivery_instructions || order.occasion) && (
+                        <div className="order-gift-details">
+                          <div><strong>Ocasião</strong><span>{order.occasion || "Não informada"}</span></div>
+                          <div><strong>Cartão</strong><span>{order.gift_message || "Sem mensagem"}{order.anonymous_delivery ? " · Entrega anônima" : ""}</span></div>
+                          <div><strong>Observações</strong><span>{order.delivery_instructions || "Nenhuma"}</span></div>
+                        </div>
+                      )}
 
                       <div className="order-items">
                         <h4>Itens do pedido</h4>
@@ -865,7 +874,7 @@ function InventoryManager({
 function ProductEditor({ mode, product, saving, onClose, onSave }) {
   const [form, setForm] = useState({
     name: product?.name ?? "",
-    category: product?.category ?? "Casa",
+    category: product?.category ?? "Buquês",
     price: product?.price ?? "",
     stock: product?.stock ?? 0,
     tag: product?.tag ?? "",
@@ -919,15 +928,13 @@ function ProductEditor({ mode, product, saving, onClose, onSave }) {
           <div className="product-form-grid">
             <label className="full">
               Nome do produto
-              <input required value={form.name} onChange={(event) => updateField("name", event.target.value)} placeholder="Ex.: Vaso Cerâmica Areia" />
+              <input required value={form.name} onChange={(event) => updateField("name", event.target.value)} placeholder="Ex.: Buquê Jardim Rosé" />
             </label>
             <label>
               Categoria
               <select value={form.category} onChange={(event) => updateField("category", event.target.value)}>
-                <option>Casa</option>
-                <option>Moda</option>
-                <option>Beleza</option>
-                <option>Acessórios</option>
+                <option>Buquês</option>
+                <option>Plantas</option>
               </select>
             </label>
             <label>
