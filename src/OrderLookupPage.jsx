@@ -146,7 +146,12 @@ export default function OrderLookupPage() {
               <h2>Itens do pedido</h2>
               {order.items.map((item, index) => (
                 <div key={`${item.product_name}-${index}`}>
-                  <span>{item.quantity}× {item.product_name}</span>
+                  <span className="tracking-item-description">
+                    {item.quantity}× {item.product_name}
+                    {(item.selected_size || item.selected_addons?.length > 0) && (
+                      <small>{[item.selected_size, ...(item.selected_addons ?? []).map((addon) => addon.label)].filter(Boolean).join(" · ")}</small>
+                    )}
+                  </span>
                   <strong>{formatCurrency(Number(item.line_total))}</strong>
                 </div>
               ))}

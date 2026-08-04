@@ -36,7 +36,10 @@ const orderColumns = `
     product_name,
     unit_price,
     quantity,
-    line_total
+    line_total,
+    selected_size,
+    selected_addons,
+    options_total
   )
 `;
 
@@ -54,6 +57,9 @@ function normalizeOrder(order) {
       unit_price: Number(item.unit_price),
       quantity: Number(item.quantity),
       line_total: Number(item.line_total),
+      selected_size: item.selected_size ?? "",
+      selected_addons: Array.isArray(item.selected_addons) ? item.selected_addons : [],
+      options_total: Number(item.options_total ?? 0),
     })),
   };
 }
@@ -61,7 +67,13 @@ function normalizeOrder(order) {
 function createDemoOrder(customer, cart, products) {
   const subtotal = cart.reduce((sum, item) => {
     const product = products.find((candidate) => candidate.id === item.id);
-    return sum + (product?.price ?? 0) * item.quantity;
+    const sizes = Array.isArray(product?.size_options) ? product.size_options : [];
+    const addons = Array.isArray(product?.addons) ? product.addons : [];
+    const size = sizes.find((option) => option.id === item.size_id) ?? sizes[0];
+    const extras = addons
+      .filter((addon) => (item.addon_ids ?? []).includes(addon.id))
+      .reduce((total, addon) => total + Number(addon.price ?? 0), 0);
+    return sum + ((product?.price ?? 0) + Number(size?.price_delta ?? 0) + extras) * item.quantity;
   }, 0);
   const shipping = customer.delivery_method === "pickup" ? 0 : 14.9;
 
@@ -83,6 +95,8 @@ export async function createOrder({ customer, cart, products }) {
   const items = cart.map((item) => ({
     product_id: item.id,
     quantity: item.quantity,
+    size_id: item.size_id ?? "standard",
+    addon_ids: item.addon_ids ?? [],
   }));
 
   const { data, error } = await supabase.rpc("create_order", {

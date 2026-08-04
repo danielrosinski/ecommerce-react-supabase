@@ -832,7 +832,12 @@ function InventoryManager({
                         <h4>Itens do pedido</h4>
                         {order.order_items.map((item) => (
                           <div key={item.id}>
-                            <span>{item.quantity}× {item.product_name}</span>
+                            <span className="order-item-description">
+                              {item.quantity}× {item.product_name}
+                              {(item.selected_size || item.selected_addons?.length > 0) && (
+                                <small>{[item.selected_size, ...(item.selected_addons ?? []).map((addon) => addon.label)].filter(Boolean).join(" · ")}</small>
+                              )}
+                            </span>
                             <strong>{formatCurrency(item.line_total)}</strong>
                           </div>
                         ))}
@@ -872,6 +877,8 @@ function InventoryManager({
 }
 
 function ProductEditor({ mode, product, saving, onClose, onSave }) {
+  const findSize = (id) => product?.size_options?.find((option) => option.id === id);
+  const findAddon = (id) => product?.addons?.find((addon) => addon.id === id);
   const [form, setForm] = useState({
     name: product?.name ?? "",
     category: product?.category ?? "Buquês",
@@ -879,6 +886,13 @@ function ProductEditor({ mode, product, saving, onClose, onSave }) {
     stock: product?.stock ?? 0,
     tag: product?.tag ?? "",
     image: product?.image ?? "",
+    description: product?.description ?? "",
+    care_instructions: product?.care_instructions ?? "",
+    medium_delta: findSize("medium")?.price_delta ?? (mode === "create" ? 35 : ""),
+    large_delta: findSize("large")?.price_delta ?? (mode === "create" ? 70 : ""),
+    card_price: findAddon("card")?.price ?? (mode === "create" ? 9.9 : ""),
+    chocolate_price: findAddon("chocolate")?.price ?? (mode === "create" ? 24.9 : ""),
+    vase_price: findAddon("vase")?.price ?? (mode === "create" ? 39.9 : ""),
     featured: product?.featured ?? false,
     active: product?.active ?? true,
   });
@@ -893,11 +907,26 @@ function ProductEditor({ mode, product, saving, onClose, onSave }) {
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    const sizeOptions = [{ id: "standard", label: form.category === "Plantas" ? "Tamanho único" : "Padrão", price_delta: 0 }];
+    if (form.medium_delta !== "") sizeOptions.push({ id: "medium", label: "Médio", price_delta: Math.max(0, Number(form.medium_delta)) });
+    if (form.large_delta !== "") sizeOptions.push({ id: "large", label: "Grande", price_delta: Math.max(0, Number(form.large_delta)) });
+    const addons = [
+      ["card", "Cartão especial", form.card_price],
+      ["chocolate", "Chocolate", form.chocolate_price],
+      ["vase", "Vaso de vidro", form.vase_price],
+    ]
+      .filter(([, , price]) => price !== "")
+      .map(([id, label, price]) => ({ id, label, price: Math.max(0, Number(price)) }));
+
     onSave({
       ...form,
       name: form.name.trim(),
       tag: form.tag.trim(),
       image: form.image.trim(),
+      description: form.description.trim(),
+      care_instructions: form.care_instructions.trim(),
+      size_options: sizeOptions,
+      addons,
       price: Math.max(0, Number(form.price)),
       stock: Math.max(0, Number(form.stock)),
     });
@@ -953,6 +982,25 @@ function ProductEditor({ mode, product, saving, onClose, onSave }) {
               URL da imagem
               <input required type="url" value={form.image} onChange={(event) => updateField("image", event.target.value)} placeholder="https://exemplo.com/imagem.jpg" />
             </label>
+            <label className="full">
+              Descrição do produto
+              <textarea required rows="3" value={form.description} onChange={(event) => updateField("description", event.target.value)} placeholder="Conte o que torna este produto especial." />
+            </label>
+            <label className="full">
+              Instruções de cuidado
+              <textarea rows="2" value={form.care_instructions} onChange={(event) => updateField("care_instructions", event.target.value)} placeholder="Ex.: trocar a água diariamente e evitar sol direto." />
+            </label>
+            <div className="full product-option-editor">
+              <div><strong>Tamanhos opcionais</strong><small>Deixe o valor vazio para não oferecer o tamanho.</small></div>
+              <label>Médio · acréscimo<input type="number" min="0" step="0.01" value={form.medium_delta} onChange={(event) => updateField("medium_delta", event.target.value)} placeholder="Não oferecer" /></label>
+              <label>Grande · acréscimo<input type="number" min="0" step="0.01" value={form.large_delta} onChange={(event) => updateField("large_delta", event.target.value)} placeholder="Não oferecer" /></label>
+            </div>
+            <div className="full product-option-editor product-addon-editor">
+              <div><strong>Complementos</strong><small>Deixe o valor vazio para ocultar o complemento.</small></div>
+              <label>Cartão especial<input type="number" min="0" step="0.01" value={form.card_price} onChange={(event) => updateField("card_price", event.target.value)} placeholder="Não oferecer" /></label>
+              <label>Chocolate<input type="number" min="0" step="0.01" value={form.chocolate_price} onChange={(event) => updateField("chocolate_price", event.target.value)} placeholder="Não oferecer" /></label>
+              <label>Vaso de vidro<input type="number" min="0" step="0.01" value={form.vase_price} onChange={(event) => updateField("vase_price", event.target.value)} placeholder="Não oferecer" /></label>
+            </div>
             <label className="product-check">
               <input type="checkbox" checked={form.featured} onChange={(event) => updateField("featured", event.target.checked)} />
               <span>Mostrar como destaque</span>

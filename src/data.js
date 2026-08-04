@@ -8,6 +8,18 @@ export const defaultProducts = [
     featured: true,
     active: true,
     tag: "Mais pedido",
+    description: "Um buquê luminoso com flores da estação, folhagens delicadas e acabamento artesanal em papel palha.",
+    care_instructions: "Mantenha em local fresco, troque a água diariamente e corte a ponta dos caules na diagonal.",
+    size_options: [
+      { id: "standard", label: "Padrão", price_delta: 0 },
+      { id: "medium", label: "Médio", price_delta: 35 },
+      { id: "large", label: "Grande", price_delta: 70 },
+    ],
+    addons: [
+      { id: "card", label: "Cartão especial", price: 9.9 },
+      { id: "chocolate", label: "Chocolate", price: 24.9 },
+      { id: "vase", label: "Vaso de vidro", price: 39.9 },
+    ],
     image:
       "https://images.unsplash.com/photo-1526047932273-341f2a7631f9?auto=format&fit=crop&w=900&q=85",
   },
@@ -20,6 +32,18 @@ export const defaultProducts = [
     featured: true,
     active: true,
     tag: "Delicado",
+    description: "Rosas e flores suaves em uma composição romântica, criada para aniversários e gestos de carinho.",
+    care_instructions: "Retire a embalagem da base, use água limpa e evite exposição direta ao sol.",
+    size_options: [
+      { id: "standard", label: "Padrão", price_delta: 0 },
+      { id: "medium", label: "Médio", price_delta: 40 },
+      { id: "large", label: "Grande", price_delta: 80 },
+    ],
+    addons: [
+      { id: "card", label: "Cartão especial", price: 9.9 },
+      { id: "chocolate", label: "Chocolate", price: 24.9 },
+      { id: "vase", label: "Vaso de vidro", price: 39.9 },
+    ],
     image:
       "https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=900&q=85",
   },
@@ -32,6 +56,17 @@ export const defaultProducts = [
     featured: true,
     active: true,
     tag: "Flores da estação",
+    description: "Mistura espontânea de flores e folhagens com aparência campestre e acabamento natural.",
+    care_instructions: "Mantenha a água sempre limpa e remova folhas que fiquem abaixo da linha da água.",
+    size_options: [
+      { id: "standard", label: "Padrão", price_delta: 0 },
+      { id: "medium", label: "Médio", price_delta: 30 },
+      { id: "large", label: "Grande", price_delta: 60 },
+    ],
+    addons: [
+      { id: "card", label: "Cartão especial", price: 9.9 },
+      { id: "chocolate", label: "Chocolate", price: 24.9 },
+    ],
     image:
       "https://images.unsplash.com/photo-1487412912498-0447578fcca8?auto=format&fit=crop&w=900&q=85",
   },
@@ -44,6 +79,13 @@ export const defaultProducts = [
     featured: false,
     active: true,
     tag: "Elegância natural",
+    description: "Orquídea branca selecionada, apresentada em vaso neutro para combinar com diferentes ambientes.",
+    care_instructions: "Deixe em ambiente iluminado sem sol direto e regue apenas quando o substrato estiver quase seco.",
+    size_options: [{ id: "standard", label: "Tamanho único", price_delta: 0 }],
+    addons: [
+      { id: "card", label: "Cartão especial", price: 9.9 },
+      { id: "cachepot", label: "Cachepô palha", price: 29.9 },
+    ],
     image:
       "https://images.unsplash.com/photo-1459411621453-7b03977f4bfc?auto=format&fit=crop&w=900&q=85",
   },
@@ -56,6 +98,10 @@ export const defaultProducts = [
     featured: false,
     active: true,
     tag: "Fácil de cuidar",
+    description: "Jiboia de folhagem vibrante em vaso com acabamento palha, ideal para presentear ou decorar.",
+    care_instructions: "Mantenha em luz indireta e regue quando a camada superficial do substrato estiver seca.",
+    size_options: [{ id: "standard", label: "Tamanho único", price_delta: 0 }],
+    addons: [{ id: "card", label: "Cartão especial", price: 9.9 }],
     image:
       "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?auto=format&fit=crop&w=900&q=85",
   },
@@ -68,6 +114,10 @@ export const defaultProducts = [
     featured: false,
     active: true,
     tag: "Pequeno presente",
+    description: "Suculenta compacta e charmosa, pronta para ser entregue como lembrança ou gesto de afeto.",
+    care_instructions: "Regue com pouca água e mantenha próxima a uma janela bem iluminada.",
+    size_options: [{ id: "standard", label: "Tamanho único", price_delta: 0 }],
+    addons: [{ id: "card", label: "Cartão especial", price: 9.9 }],
     image:
       "https://images.unsplash.com/photo-1459156212016-c812468e2115?auto=format&fit=crop&w=900&q=85",
   },

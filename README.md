@@ -1,21 +1,24 @@
-# ROSINSKI — floricultura digital V6
+# ROSINSKI — floricultura digital V7
 
 E-commerce responsivo de floricultura desenvolvido com React, Vite e Supabase, preparado para publicação gratuita na Vercel.
 
 ## O que funciona nesta versão
 
-### Revisão visual da V6
+### Identidade e catálogo da V7
 
-- Cabeçalho redistribuído para impedir sobreposição entre logo e busca
-- Catálogo reposicionado como primeiro conteúdo da página
-- Apresentação da floricultura movida para depois dos produtos
-- Paleta reforçada em terracota e palha, com menos áreas brancas
-- Nenhuma nova atualização SQL em relação à V5
+- Cabeçalho verde-musgo com busca, navegação e ações reorganizadas
+- Fundo palha e cartões claros, mantendo o terracota como cor de apoio
+- Grade de produtos inspirada em vitrines de floriculturas
+- Botões “Comprar agora” em verde-musgo
+- Página de detalhes em modal com descrição e cuidados
+- Escolha de tamanhos e complementos antes de adicionar ao carrinho
+- Botão flutuante de WhatsApp com número demonstrativo
 
 ### Loja
 
 - Catálogo com busca, categorias, ordenação e favoritos
 - Carrinho com quantidades e validação de estoque
+- Carrinho registra tamanho e complementos escolhidos
 - Checkout adaptado para floricultura: destinatário, telefone, data e período
 - Escolha entre entrega local em Guaratuba ou retirada
 - Ocasião, mensagem para o cartão, entrega anônima e instruções
@@ -31,6 +34,7 @@ E-commerce responsivo de floricultura desenvolvido com React, Vite e Supabase, p
 - Login protegido com e-mail e senha em `/admin`
 - Controle de preços, estoque, destaque e visibilidade dos produtos
 - Cadastro e edição completa de produtos com prévia da imagem
+- Cadastro de descrição, cuidados, tamanhos e complementos
 - Exclusão protegida de produtos que não possuem histórico de pedidos
 - Lista de pedidos com cliente, endereço, itens e valores
 - Atualização de status: recebido, confirmado, em preparação, saiu para entrega, entregue ou cancelado
@@ -44,13 +48,18 @@ E-commerce responsivo de floricultura desenvolvido com React, Vite e Supabase, p
 - Linha do tempo do andamento, data, período, destinatário, itens e total
 - O endereço completo e os dados administrativos não são expostos
 
-## Atualizar da V5 para a V6
+## Atualizar da V6 para a V7
 
-A V6 altera somente a apresentação visual. Não execute outro arquivo SQL.
+A V7 adiciona novos campos aos produtos e aos itens dos pedidos.
 
-1. Copie o `.env.local` da V5 para a pasta V6.
-2. Execute `npm install` e `npm run dev`.
-3. Confira o cabeçalho, o catálogo no topo e a responsividade.
+1. No Supabase, abra **SQL Editor**.
+2. Abra `supabase/v7-catalogo.sql`, copie todo o conteúdo e execute uma única vez.
+3. Copie o `.env.local` da V6 para a pasta V7.
+4. Execute `npm install` e `npm run dev`.
+5. Abra um produto, escolha tamanho e complementos e faça um pedido de teste.
+6. Confira a personalização em `/admin` e em `/pedido`.
+
+O arquivo SQL mantém os pedidos e produtos existentes. Ele apenas acrescenta os novos campos e valores iniciais.
 
 ## Atualizar da V4 para a V5
 
@@ -100,7 +109,7 @@ Não é necessário cadastrar chave de API nem adicionar uma variável na Vercel
 ## Instalação nova
 
 1. Crie um projeto gratuito em `https://supabase.com`.
-2. No **SQL Editor**, execute `supabase/schema.sql` e depois `supabase/v5-floricultura.sql`.
+2. No **SQL Editor**, execute `supabase/schema.sql`, `supabase/v5-floricultura.sql` e `supabase/v7-catalogo.sql`, nesta ordem.
 3. Em **Authentication > Users**, crie o usuário administrador.
 4. Copie o UUID do usuário.
 5. No SQL Editor, execute:
@@ -165,7 +174,8 @@ nova-ecommerce/
 ├── supabase/
 │   ├── schema.sql
 │   ├── v3-orders.sql
-│   └── v5-floricultura.sql
+│   ├── v5-floricultura.sql
+│   └── v7-catalogo.sql
 ├── .env.example
 ├── package.json
 └── vercel.json
@@ -173,4 +183,4 @@ nova-ecommerce/
 
 ## Próxima evolução
 
-O pagamento ainda é simulado. A próxima etapa poderá integrar Mercado Pago ou Stripe por uma função segura no servidor, sem expor chaves privadas no navegador. A taxa local de R$ 14,90 também poderá ser substituída por uma tabela de bairros definida pela floricultura.
+O pagamento ainda é simulado. A próxima etapa poderá incluir taxa por bairro, cupons e integração de pagamento por uma função segura no servidor, sem expor chaves privadas no navegador.

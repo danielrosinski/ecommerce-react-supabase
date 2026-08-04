@@ -8,8 +8,10 @@ import {
   CreditCard,
   Camera,
   Heart,
+  Leaf,
   Loader2,
   MapPin,
+  MessageCircle,
   Menu,
   Minus,
   PackageCheck,
@@ -33,6 +35,26 @@ import { formatPostalCode, lookupPostalCode } from "./services/postalCode";
 import { loadProducts } from "./services/products";
 
 const categories = ["Todos", "Buquês", "Plantas"];
+
+const productSizes = (product) =>
+  Array.isArray(product?.size_options) && product.size_options.length
+    ? product.size_options
+    : [{ id: "standard", label: "Tamanho único", price_delta: 0 }];
+
+const productAddons = (product) =>
+  Array.isArray(product?.addons) ? product.addons : [];
+
+const configuredUnitPrice = (product, item = {}) => {
+  const size = productSizes(product).find(
+    (option) => option.id === item.size_id,
+  ) ?? productSizes(product)[0];
+  const addonIds = Array.isArray(item.addon_ids) ? item.addon_ids : [];
+  const addonTotal = productAddons(product)
+    .filter((addon) => addonIds.includes(addon.id))
+    .reduce((sum, addon) => sum + Number(addon.price ?? 0), 0);
+
+  return Number(product?.price ?? 0) + Number(size.price_delta ?? 0) + addonTotal;
+};
 
 function readStorage(key, fallback) {
   try {
@@ -122,6 +144,7 @@ function App() {
       favorites={favorites}
       setFavorites={setFavorites}
       connectedInventory={dataStatus === "connected"}
+      databaseReady={dataStatus !== "error"}
       reloadProducts={reloadProducts}
     />
   );
@@ -135,6 +158,7 @@ function Storefront({
   favorites,
   setFavorites,
   connectedInventory,
+  databaseReady,
   reloadProducts,
 }) {
   const [query, setQuery] = useState("");
@@ -147,6 +171,7 @@ function Storefront({
   const [orderResult, setOrderResult] = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   const activeProducts = products.filter((product) => product.active);
   const filteredProducts = useMemo(() => {
@@ -174,7 +199,7 @@ function Storefront({
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = cart.reduce((sum, item) => {
     const product = products.find((candidate) => candidate.id === item.id);
-    return sum + (product?.price ?? 0) * item.quantity;
+    return sum + configuredUnitPrice(product, item) * item.quantity;
   }, 0);
 
   useEffect(() => {
@@ -184,14 +209,17 @@ function Storefront({
   }, [toast]);
 
   useEffect(() => {
-    document.body.classList.toggle("no-scroll", cartOpen || checkoutOpen);
+    document.body.classList.toggle(
+      "no-scroll",
+      cartOpen || checkoutOpen || Boolean(selectedProduct),
+    );
     return () => document.body.classList.remove("no-scroll");
-  }, [cartOpen, checkoutOpen]);
+  }, [cartOpen, checkoutOpen, selectedProduct]);
 
   const itemQuantity = (id) =>
     cart.find((item) => item.id === id)?.quantity ?? 0;
 
-  const addToCart = (product) => {
+  const addToCart = (product, selection = {}) => {
     const current = itemQuantity(product.id);
     if (product.stock === 0 || current >= product.stock) {
       setToast("Não há mais unidades disponíveis.");
@@ -199,14 +227,24 @@ function Storefront({
     }
     setCart((currentCart) => {
       const found = currentCart.find((item) => item.id === product.id);
+      const sizeId = selection.sizeId ?? found?.size_id ?? productSizes(product)[0].id;
+      const addonIds = selection.addonIds ?? found?.addon_ids ?? [];
       if (found) {
         return currentCart.map((item) =>
           item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
+            ? {
+                ...item,
+                quantity: item.quantity + 1,
+                size_id: sizeId,
+                addon_ids: addonIds,
+              }
             : item,
         );
       }
-      return [...currentCart, { id: product.id, quantity: 1 }];
+      return [
+        ...currentCart,
+        { id: product.id, quantity: 1, size_id: sizeId, addon_ids: addonIds },
+      ];
     });
     setToast(`${product.name} adicionado ao carrinho.`);
   };
@@ -244,6 +282,10 @@ function Storefront({
   const finishOrder = async (event) => {
     event.preventDefault();
     if (checkoutLoading || cart.length === 0) return;
+    if (!databaseReady) {
+      setCheckoutError("A atualização V7 do banco ainda não foi executada. Use o arquivo supabase/v7-catalogo.sql antes de registrar pedidos.");
+      return;
+    }
 
     const form = event.currentTarget;
     const formData = new FormData(form);
@@ -435,6 +477,7 @@ function Storefront({
                   favorite={favorites.includes(product.id)}
                   onFavorite={() => toggleFavorite(product.id)}
                   onAdd={() => addToCart(product)}
+                  onDetails={() => setSelectedProduct(product)}
                 />
               ))}
             </div>
@@ -532,6 +575,28 @@ function Storefront({
         onClose={closeCheckout}
         onSubmit={finishOrder}
       />
+      {selectedProduct && (
+        <ProductDetailModal
+          product={selectedProduct}
+          quantity={itemQuantity(selectedProduct.id)}
+          favorite={favorites.includes(selectedProduct.id)}
+          onFavorite={() => toggleFavorite(selectedProduct.id)}
+          onClose={() => setSelectedProduct(null)}
+          onAdd={(selection) => {
+            addToCart(selectedProduct, selection);
+            setSelectedProduct(null);
+          }}
+        />
+      )}
+      <a
+        className="whatsapp-float"
+        href="https://wa.me/5542000000000?text=Olá%2C%20gostaria%20de%20saber%20mais%20sobre%20os%20produtos%20da%20Rosinski%20Floricultura."
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Conversar com a Rosinski Floricultura pelo WhatsApp"
+      >
+        <MessageCircle size={24} />
+      </a>
       {toast && (
         <div className="toast" role="status">
           <Check size={18} /> {toast}
@@ -541,7 +606,7 @@ function Storefront({
   );
 }
 
-function ProductCard({ product, quantity, favorite, onFavorite, onAdd }) {
+function ProductCard({ product, quantity, favorite, onFavorite, onAdd, onDetails }) {
   const remaining = Math.max(0, product.stock - quantity);
   const stockClass = product.stock === 0 ? "out" : product.stock <= 3 ? "low" : "available";
   const stockLabel =
@@ -553,19 +618,16 @@ function ProductCard({ product, quantity, favorite, onFavorite, onAdd }) {
 
   return (
     <article className={`product-card ${product.stock === 0 ? "sold-out" : ""}`}>
-      <div className="product-visual">
+      <button className="product-visual product-visual-button" type="button" onClick={onDetails} aria-label={`Ver detalhes de ${product.name}`}>
         <img src={product.image} alt={product.name} loading="lazy" />
         <span className="product-tag">{product.tag}</span>
-        <button
+        <span
           className={`favorite-button ${favorite ? "active" : ""}`}
-          type="button"
-          aria-label={favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-          aria-pressed={favorite}
-          onClick={onFavorite}
+          aria-hidden="true"
         >
           <Heart size={19} fill={favorite ? "currentColor" : "none"} />
-        </button>
-      </div>
+        </span>
+      </button>
       <div className="product-info">
         <p className="product-category">{product.category}</p>
         <h3>{product.name}</h3>
@@ -575,11 +637,86 @@ function ProductCard({ product, quantity, favorite, onFavorite, onAdd }) {
             <i /> {stockLabel}
           </span>
         </div>
-        <button className="add-button" type="button" onClick={onAdd} disabled={remaining === 0}>
-          {product.stock === 0 ? "Avise-me quando chegar" : quantity > 0 ? `Adicionar mais · ${quantity} no carrinho` : "Adicionar ao carrinho"}
+        <div className="product-card-actions">
+          <button className="details-button" type="button" onClick={onDetails}>Ver detalhes</button>
+          <button className="add-button" type="button" onClick={onAdd} disabled={remaining === 0}>
+            {product.stock === 0 ? "Indisponível" : quantity > 0 ? `Comprar mais · ${quantity}` : "Comprar agora"}
+          </button>
+        </div>
+        <button className={`favorite-text-button ${favorite ? "active" : ""}`} type="button" onClick={onFavorite} aria-pressed={favorite}>
+          <Heart size={15} fill={favorite ? "currentColor" : "none"} /> {favorite ? "Salvo nos favoritos" : "Salvar nos favoritos"}
         </button>
       </div>
     </article>
+  );
+}
+
+function ProductDetailModal({ product, quantity, favorite, onFavorite, onClose, onAdd }) {
+  const sizes = productSizes(product);
+  const addons = productAddons(product);
+  const [sizeId, setSizeId] = useState(sizes[0].id);
+  const [addonIds, setAddonIds] = useState([]);
+  const selection = { size_id: sizeId, addon_ids: addonIds };
+  const total = configuredUnitPrice(product, selection);
+  const remaining = Math.max(0, product.stock - quantity);
+
+  const toggleAddon = (id) => {
+    setAddonIds((current) =>
+      current.includes(id)
+        ? current.filter((addonId) => addonId !== id)
+        : [...current, id],
+    );
+  };
+
+  return (
+    <div className="modal-layer product-detail-layer" role="dialog" aria-modal="true" aria-labelledby="product-detail-title">
+      <button className="panel-backdrop" type="button" aria-label="Fechar detalhes" onClick={onClose} />
+      <article className="product-detail-modal">
+        <button className="modal-close icon-button" type="button" onClick={onClose} aria-label="Fechar"><X size={20} /></button>
+        <div className="product-detail-image"><img src={product.image} alt={product.name} /><span>{product.tag}</span></div>
+        <div className="product-detail-content">
+          <p className="product-category">{product.category}</p>
+          <h2 id="product-detail-title">{product.name}</h2>
+          <p className="product-detail-description">{product.description || "Uma escolha preparada com cuidado para tornar o momento ainda mais especial."}</p>
+
+          <fieldset className="option-group">
+            <legend>Escolha o tamanho</legend>
+            <div className="size-options">
+              {sizes.map((size) => (
+                <label className={sizeId === size.id ? "selected" : ""} key={size.id}>
+                  <input type="radio" name={`size-${product.id}`} checked={sizeId === size.id} onChange={() => setSizeId(size.id)} />
+                  <span>{size.label}</span>
+                  <strong>{Number(size.price_delta) === 0 ? "Incluso" : `+ ${formatCurrency(size.price_delta)}`}</strong>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {addons.length > 0 && (
+            <fieldset className="option-group">
+              <legend>Complete o presente</legend>
+              <div className="addon-options">
+                {addons.map((addon) => (
+                  <label className={addonIds.includes(addon.id) ? "selected" : ""} key={addon.id}>
+                    <input type="checkbox" checked={addonIds.includes(addon.id)} onChange={() => toggleAddon(addon.id)} />
+                    <span>{addon.label}</span><strong>+ {formatCurrency(addon.price)}</strong>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+
+          <div className="care-note"><Leaf size={18} /><span><strong>Como cuidar</strong>{product.care_instructions || "Mantenha em local fresco e siga as orientações enviadas com o produto."}</span></div>
+          <div className="product-detail-footer">
+            <div><span>Total desta escolha</span><strong>{formatCurrency(total)}</strong></div>
+            <button className="primary-button" type="button" disabled={remaining === 0} onClick={() => onAdd({ sizeId, addonIds })}>
+              {remaining === 0 ? "Produto indisponível" : "Adicionar ao carrinho"}
+            </button>
+          </div>
+          <button className={`detail-favorite ${favorite ? "active" : ""}`} type="button" onClick={onFavorite}><Heart size={16} fill={favorite ? "currentColor" : "none"} />{favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}</button>
+        </div>
+      </article>
+    </div>
   );
 }
 
@@ -633,13 +770,18 @@ function CartDrawer({ open, onClose, cart, products, subtotal, onUpdate, onRemov
         ) : (
           <>
             <div className="cart-items">
-              {items.map(({ product, quantity }) => (
+              {items.map(({ product, quantity, size_id, addon_ids }) => {
+                const size = productSizes(product).find((option) => option.id === size_id) ?? productSizes(product)[0];
+                const selectedAddons = productAddons(product).filter((addon) => (addon_ids ?? []).includes(addon.id));
+                const unitPrice = configuredUnitPrice(product, { size_id, addon_ids });
+                return (
                 <article className="cart-item" key={product.id}>
                   <img src={product.image} alt="" />
                   <div>
                     <p>{product.category}</p>
                     <h3>{product.name}</h3>
-                    <strong>{formatCurrency(product.price)}</strong>
+                    <span className="cart-item-options">{size.label}{selectedAddons.length ? ` · ${selectedAddons.map((addon) => addon.label).join(", ")}` : ""}</span>
+                    <strong>{formatCurrency(unitPrice)}</strong>
                     <div className="quantity-control" aria-label={`Quantidade de ${product.name}`}>
                       <button type="button" aria-label="Diminuir quantidade" onClick={() => onUpdate(product.id, -1)}><Minus size={15} /></button>
                       <span>{quantity}</span>
@@ -648,7 +790,8 @@ function CartDrawer({ open, onClose, cart, products, subtotal, onUpdate, onRemov
                   </div>
                   <button className="remove-item" type="button" aria-label={`Remover ${product.name}`} onClick={() => onRemove(product.id)}><Trash2 size={17} /></button>
                 </article>
-              ))}
+                );
+              })}
             </div>
             <div className="cart-summary">
               <div><span>Subtotal</span><strong>{formatCurrency(subtotal)}</strong></div>

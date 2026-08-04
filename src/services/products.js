@@ -2,7 +2,9 @@ import { defaultProducts } from "../data";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 
 const productColumns =
-  "id,name,category,price,stock,featured,active,tag,image,created_at,updated_at";
+  "id,name,category,price,stock,featured,active,tag,image,description,care_instructions,size_options,addons,created_at,updated_at";
+
+const defaultSizes = [{ id: "standard", label: "Tamanho único", price_delta: 0 }];
 
 function normalizeProduct(product) {
   return {
@@ -10,6 +12,17 @@ function normalizeProduct(product) {
     id: Number(product.id),
     price: Number(product.price),
     stock: Number(product.stock),
+    description: product.description ?? "",
+    care_instructions: product.care_instructions ?? "",
+    size_options: Array.isArray(product.size_options) && product.size_options.length
+      ? product.size_options.map((option) => ({
+          ...option,
+          price_delta: Number(option.price_delta ?? 0),
+        }))
+      : defaultSizes,
+    addons: Array.isArray(product.addons)
+      ? product.addons.map((addon) => ({ ...addon, price: Number(addon.price ?? 0) }))
+      : [],
   };
 }
 
@@ -54,6 +67,10 @@ export async function createProduct(product) {
     active: Boolean(product.active),
     tag: product.tag.trim(),
     image: product.image.trim(),
+    description: product.description?.trim() ?? "",
+    care_instructions: product.care_instructions?.trim() ?? "",
+    size_options: product.size_options ?? defaultSizes,
+    addons: product.addons ?? [],
   };
 
   if (!isSupabaseConfigured) {
@@ -98,6 +115,10 @@ export async function restoreExampleProducts() {
     active: product.active,
     tag: product.tag,
     image: product.image,
+    description: product.description ?? "",
+    care_instructions: product.care_instructions ?? "",
+    size_options: product.size_options ?? defaultSizes,
+    addons: product.addons ?? [],
   }));
 
   const { error } = await supabase.from("products").upsert(rows, {
