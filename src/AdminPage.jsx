@@ -29,6 +29,7 @@ import {
 import { formatCurrency } from "./data";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import { loadOrders, updateOrderStatus } from "./services/orders";
+import { cancelPagBankCheckout } from "./services/payments";
 import {
   createProduct,
   deleteProduct,
@@ -57,6 +58,14 @@ const orderStatuses = [
   { value: "completed", label: "Finalizado" },
   { value: "cancelled", label: "Cancelado" },
 ];
+
+const paymentStatuses = {
+  simulated: { label: "Simulado", detail: "Pedido anterior, sem cobrança real" },
+  pending: { label: "Pendente", detail: "Aguardando confirmação do PagBank" },
+  approved: { label: "Aprovado", detail: "Pagamento confirmado pelo PagBank" },
+  refused: { label: "Não aprovado", detail: "Pagamento recusado, cancelado ou expirado" },
+  refunded: { label: "Reembolsado", detail: "Valor devolvido pelo PagBank" },
+};
 
 const formatOrderDate = (value) =>
   new Intl.DateTimeFormat("pt-BR", {
@@ -144,6 +153,7 @@ function AdminPage({ products, setProducts, reloadProducts }) {
       reloadProducts={reloadProducts}
       connected={isSupabaseConfigured}
       email={session?.user?.email}
+      accessToken={session?.access_token}
     />
   );
 }
@@ -272,6 +282,7 @@ function InventoryManager({
   reloadProducts,
   connected,
   email,
+  accessToken,
 }) {
   const [view, setView] = useState("products");
   const [status, setStatus] = useState({ type: "", message: "" });
@@ -464,6 +475,13 @@ function InventoryManager({
 
     setSavingOrderId(order.id);
     try {
+      if (nextStatus === "cancelled" && order.payment_provider === "pagbank") {
+        await cancelPagBankCheckout(order.order_number, accessToken);
+        await Promise.all([refreshOrders(), reloadProducts()]);
+        setStatus({ type: "success", message: "Checkout cancelado e estoque restaurado." });
+        return;
+      }
+
       const updated = await updateOrderStatus(order.id, nextStatus);
       setOrders((current) =>
         current.map((item) => (item.id === order.id ? updated : item)),
@@ -849,8 +867,10 @@ function InventoryManager({
                         </section>
                         <section>
                           <h4>Pagamento</h4>
-                          <strong>Simulado</strong>
-                          <span>Nenhuma cobrança realizada</span>
+                          <strong className={`payment-status-text payment-${order.payment_status}`}>
+                            {paymentStatuses[order.payment_status]?.label ?? "Pendente"}
+                          </strong>
+                          <span>{paymentStatuses[order.payment_status]?.detail ?? "Aguardando atualização"}</span>
                         </section>
                       </div>
 

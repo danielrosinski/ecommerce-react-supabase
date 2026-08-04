@@ -31,6 +31,7 @@ import OrderLookupPage from "./OrderLookupPage";
 import { defaultProducts, formatCurrency } from "./data";
 import { isSupabaseConfigured } from "./lib/supabase";
 import { createOrder } from "./services/orders";
+import { createPagBankCheckout } from "./services/payments";
 import { formatPostalCode, lookupPostalCode } from "./services/postalCode";
 import { loadProducts } from "./services/products";
 import {
@@ -369,6 +370,23 @@ function Storefront({
 
     try {
       const result = await createOrder({ customer, cart, products });
+      let completedResult = result;
+
+      if (!result.demo) {
+        try {
+          const payment = await createPagBankCheckout(result.order_number, customer.email);
+          completedResult = {
+            ...result,
+            checkout_url: payment.checkoutUrl ?? "",
+            payment_approved: Boolean(payment.approved),
+          };
+        } catch (paymentError) {
+          completedResult = {
+            ...result,
+            payment_error: paymentError.message || "O pagamento não pôde ser iniciado agora.",
+          };
+        }
+      }
 
       if (connectedInventory) {
         await reloadProducts();
@@ -384,7 +402,7 @@ function Storefront({
       }
 
       setCart([]);
-      setOrderResult(result);
+      setOrderResult(completedResult);
     } catch (error) {
       console.error("Não foi possível registrar o pedido:", error);
       const missingFunction =
@@ -830,7 +848,7 @@ function CartDrawer({ open, onClose, cart, products, subtotal, onUpdate, onRemov
               <div><span>Entrega</span><span>Calculada no checkout</span></div>
               <div className="shipping-progress shipping-local"><span /><p>Retirada em Guaratuba sem taxa.</p></div>
               <button className="primary-button checkout-button" type="button" onClick={onCheckout}>Finalizar compra <ArrowRight size={18} /></button>
-              <small>O pedido será registrado. O pagamento permanece simulado nesta versão.</small>
+              <small>O pedido será reservado antes do redirecionamento ao PagBank.</small>
             </div>
           </>
         )}
@@ -967,9 +985,22 @@ function CheckoutModal({
             <span className="eyebrow">Pedido registrado</span>
             <h2>Obrigada por escolher a Rosinski.</h2>
             <div className="order-number"><span>Número do pedido</span><strong>{result.order_number}</strong></div>
-            <p>O pedido foi salvo e o estoque já foi atualizado. O pagamento desta versão é apenas uma simulação.</p>
+            <p>
+              {result.payment_approved
+                ? "O pagamento já está aprovado e o pedido foi recebido."
+                : result.checkout_url
+                  ? "O pedido foi reservado. Conclua o pagamento no ambiente seguro do PagBank."
+                  : result.payment_error
+                    ? "O pedido foi registrado, mas o checkout não pôde ser aberto. Consulte o pedido para tentar novamente."
+                    : "O pedido foi salvo e o estoque já foi atualizado."}
+            </p>
+            {result.payment_error && <div className="payment-start-error"><AlertCircle size={17} />{result.payment_error}</div>}
             <div className="success-summary"><span>Total</span><strong>{formatCurrency(result.total)}</strong></div>
-            <div className="success-actions"><button className="primary-button" type="button" onClick={onClose}>Voltar à loja</button><a className="outline-button" href="/pedido">Acompanhar pedido</a></div>
+            <div className="success-actions">
+              {result.checkout_url && <a className="primary-button" href={result.checkout_url}><CreditCard size={17} /> Pagar com PagBank</a>}
+              <a className="outline-button" href={`/pedido?pedido=${encodeURIComponent(result.order_number)}`}>Acompanhar pedido</a>
+              <button className="text-button" type="button" onClick={onClose}>Voltar à loja</button>
+            </div>
           </div>
         ) : (
           <form onSubmit={onSubmit}>
@@ -1048,8 +1079,8 @@ function CheckoutModal({
             <div className="checkout-section-title"><span>5</span><strong>Pagamento</strong></div>
             <div className="payment-demo-card">
               <CreditCard size={21} />
-              <div><strong>Pagamento simulado</strong><span>Nenhuma cobrança real será realizada.</span></div>
-              <Check size={17} />
+              <div><strong>Pix ou cartão pelo PagBank</strong><span>Você será direcionado ao ambiente seguro após registrar o pedido.</span></div>
+              <ShieldCheck size={17} />
             </div>
 
             <div className="coupon-box">
@@ -1068,9 +1099,9 @@ function CheckoutModal({
             </div>
             <div className="checkout-total"><span>Total do pedido</span><strong>{formatCurrency(total)}</strong></div>
             <button className="primary-button checkout-button" type="submit" disabled={loading}>
-              {loading ? <><Loader2 className="spin" size={18} /> Registrando pedido...</> : <>Confirmar pedido <ArrowRight size={18} /></>}
+              {loading ? <><Loader2 className="spin" size={18} /> Preparando pagamento...</> : <>Registrar e ir para o pagamento <ArrowRight size={18} /></>}
             </button>
-            <div className="checkout-security"><MapPin size={16} /> Os dados serão usados somente para este pedido demonstrativo.</div>
+            <div className="checkout-security"><ShieldCheck size={16} /> O token do PagBank permanece protegido no servidor.</div>
           </form>
         )}
       </div>

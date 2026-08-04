@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertCircle,
   ArrowLeft,
   CalendarDays,
   Check,
   Clock3,
+  CreditCard,
+  ExternalLink,
   Gift,
   Loader2,
   Mail,
@@ -15,6 +17,7 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "./data";
 import { lookupOrder } from "./services/orders";
+import { createPagBankCheckout } from "./services/payments";
 
 const statusSteps = [
   { value: "received", label: "Pedido recebido" },
@@ -40,22 +43,25 @@ function formatDate(value) {
 }
 
 export default function OrderLookupPage() {
+  const query = new URLSearchParams(window.location.search);
+  const returnedFromPayment = query.get("pagamento") === "retorno";
+  const [orderNumber, setOrderNumber] = useState(query.get("pedido") ?? "");
+  const [email, setEmail] = useState("");
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
     setLoading(true);
     setError("");
     setOrder(null);
+    setPaymentError("");
 
     try {
-      const result = await lookupOrder(
-        formData.get("order_number")?.toString() ?? "",
-        formData.get("email")?.toString() ?? "",
-      );
+      const result = await lookupOrder(orderNumber, email);
       setOrder(result);
     } catch (lookupError) {
       const missingFunction =
@@ -71,9 +77,50 @@ export default function OrderLookupPage() {
     }
   };
 
+  const continuePayment = async () => {
+    if (!order || !email) return;
+    setPaymentLoading(true);
+    setPaymentError("");
+    try {
+      if (order.payment_checkout_url) {
+        window.location.assign(order.payment_checkout_url);
+        return;
+      }
+      const payment = await createPagBankCheckout(order.order_number, email);
+      if (payment.checkoutUrl) window.location.assign(payment.checkoutUrl);
+      else if (payment.approved) setOrder((current) => ({ ...current, payment_status: "approved" }));
+      else throw new Error("O link de pagamento ainda não está disponível.");
+    } catch (paymentStartError) {
+      setPaymentError(paymentStartError.message || "Não foi possível abrir o pagamento.");
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
   const currentIndex = order
     ? statusSteps.findIndex((step) => step.value === order.status)
     : -1;
+
+  useEffect(() => {
+    if (order?.payment_provider !== "pagbank" || order.payment_status !== "pending" || !email) {
+      return undefined;
+    }
+
+    let active = true;
+    const timer = window.setInterval(async () => {
+      try {
+        const updated = await lookupOrder(order.order_number, email);
+        if (active) setOrder(updated);
+      } catch {
+        // A consulta manual continua disponível se uma atualização falhar.
+      }
+    }, 10000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [email, order?.order_number, order?.payment_provider, order?.payment_status]);
 
   return (
     <div className="tracking-page">
@@ -95,14 +142,20 @@ export default function OrderLookupPage() {
             Seus dados permanecem protegidos.
           </p>
 
+          {returnedFromPayment && (
+            <div className="payment-return-note">
+              <CreditCard size={18} /> O PagBank processará o pagamento. Consulte abaixo para acompanhar a confirmação.
+            </div>
+          )}
+
           <form className="tracking-form" onSubmit={handleSubmit}>
             <label>
               Número do pedido
-              <span><PackageCheck size={18} /><input required name="order_number" placeholder="ROSINSKI-20260803-ABC123" /></span>
+              <span><PackageCheck size={18} /><input required name="order_number" placeholder="ROSINSKI-20260803-ABC123" value={orderNumber} onChange={(event) => setOrderNumber(event.target.value)} /></span>
             </label>
             <label>
               E-mail da compra
-              <span><Mail size={18} /><input required name="email" type="email" placeholder="voce@email.com" /></span>
+              <span><Mail size={18} /><input required name="email" type="email" placeholder="voce@email.com" value={email} onChange={(event) => setEmail(event.target.value)} /></span>
             </label>
             <button className="primary-button" type="submit" disabled={loading}>
               {loading ? <><Loader2 className="spin" size={18} /> Consultando...</> : <><Search size={18} /> Consultar pedido</>}
@@ -135,6 +188,35 @@ export default function OrderLookupPage() {
                 ))}
               </ol>
             )}
+
+            <div className={`tracking-payment payment-${order.payment_status}`}>
+              <CreditCard size={20} />
+              <div>
+                <strong>
+                  {order.payment_status === "approved" && "Pagamento aprovado"}
+                  {order.payment_status === "pending" && "Pagamento pendente"}
+                  {order.payment_status === "refused" && "Pagamento não aprovado"}
+                  {order.payment_status === "refunded" && "Pagamento reembolsado"}
+                  {order.payment_status === "simulated" && "Pagamento simulado"}
+                </strong>
+                <span>
+                  {order.payment_status === "approved"
+                    ? "O PagBank confirmou o recebimento."
+                    : order.payment_provider === "pagbank"
+                      ? "A confirmação pode levar alguns instantes após o pagamento."
+                      : "Este pedido foi registrado antes da integração com o PagBank."}
+                </span>
+              </div>
+              {order.payment_provider === "pagbank" &&
+                !["approved", "refunded"].includes(order.payment_status) &&
+                !["cancelled", "completed"].includes(order.status) && (
+                  <button type="button" onClick={continuePayment} disabled={paymentLoading}>
+                    {paymentLoading ? <Loader2 className="spin" size={16} /> : <ExternalLink size={16} />}
+                    Continuar pagamento
+                  </button>
+                )}
+            </div>
+            {paymentError && <div className="tracking-error" role="alert"><AlertCircle size={18} />{paymentError}</div>}
 
             <div className="tracking-details">
               <div><CalendarDays size={19} /><span>Data prevista<strong>{formatDate(order.delivery_date)}</strong></span></div>

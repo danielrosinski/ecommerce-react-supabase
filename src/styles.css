@@ -4733,6 +4733,129 @@ body { background: #fcfaf5; }
 
 .site-footer { margin-top: 0; background: #eef1e9; color: #4a5546; }
 .product-detail-modal, .product-editor-modal, .checkout-modal { border-radius: 20px; }
+
+/* V9 · PagBank Checkout */
+.payment-start-error,
+.payment-return-note {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #dfc6a8;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #fbf4e8;
+  color: #7b572e;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.payment-start-error {
+  margin: 16px 0 0;
+}
+
+.payment-return-note {
+  margin: 20px 0 0;
+}
+
+.success-actions .primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.payment-status-text {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 0.68rem;
+}
+
+.payment-status-text.payment-pending,
+.tracking-payment.payment-pending {
+  background: #fbf4e3;
+  color: #7d6427;
+}
+
+.payment-status-text.payment-approved,
+.tracking-payment.payment-approved {
+  background: #e7f1e4;
+  color: #315d37;
+}
+
+.payment-status-text.payment-refused,
+.tracking-payment.payment-refused {
+  background: #faece9;
+  color: #91483d;
+}
+
+.payment-status-text.payment-refunded,
+.tracking-payment.payment-refunded {
+  background: #edf0f5;
+  color: #536170;
+}
+
+.payment-status-text.payment-simulated,
+.tracking-payment.payment-simulated {
+  background: #f0eee9;
+  color: #706a61;
+}
+
+.tracking-payment {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 13px;
+  border-top: 1px solid var(--line);
+  padding: 17px 20px;
+}
+
+.tracking-payment > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tracking-payment strong {
+  font-size: 0.78rem;
+}
+
+.tracking-payment span {
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.tracking-payment button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 13px;
+  background: var(--green);
+  color: white;
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.tracking-payment button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+@media (max-width: 580px) {
+  .tracking-payment {
+    grid-template-columns: auto 1fr;
+  }
+
+  .tracking-payment button {
+    grid-column: 1 / -1;
+    justify-content: center;
+    width: 100%;
+  }
+}
 .whatsapp-float { background: var(--green); }
 .whatsapp-float:hover { background: var(--green-dark); }
 

@@ -23,6 +23,8 @@ O projeto conecta a vitrine ao Supabase para que produtos, estoque, pedidos, per
 - Cupons com regras de validade e valor mínimo
 - Mensagem para cartão, ocasião e entrega anônima
 - Acompanhamento público por número do pedido e e-mail
+- Pagamento por Pix ou cartão no Checkout PagBank
+- Retorno ao site e acompanhamento do status do pagamento
 
 ### Painel administrativo
 
@@ -33,6 +35,7 @@ O projeto conecta a vitrine ao Supabase para que produtos, estoque, pedidos, per
 - Gestão das taxas de entrega
 - Gestão de cupons e limites de utilização
 - Visualização dos pedidos e atualização de status
+- Situação financeira atualizada por notificações do PagBank
 - Finalização de pedidos com preservação do histórico
 - Restauração automática do estoque em cancelamentos
 - Exclusão segura de produtos ligados apenas a pedidos cancelados ou finalizados
@@ -44,6 +47,7 @@ O projeto conecta a vitrine ao Supabase para que produtos, estoque, pedidos, per
 - Preços, descontos, frete e estoque validados no banco
 - Registro do pedido e redução de estoque em uma única transação
 - Credenciais privadas não são expostas no navegador
+- Webhooks validados novamente na API oficial antes de atualizar o pedido
 
 ## Tecnologias
 
@@ -55,6 +59,7 @@ O projeto conecta a vitrine ao Supabase para que produtos, estoque, pedidos, per
 - ViaCEP
 - Lucide Icons
 - Vercel
+- PagBank Checkout e Vercel Functions
 
 ## Estrutura
 
@@ -72,7 +77,12 @@ supabase/
 ├── v3-orders.sql
 ├── v5-floricultura.sql
 ├── v7-catalogo.sql
-└── v8-loja.sql
+├── v8-loja.sql
+├── v8-1-ajustes.sql
+└── v9-pagbank.sql
+
+api/
+└── pagbank/
 ```
 
 ## Execução local
@@ -82,11 +92,11 @@ npm install
 npm run dev
 ```
 
-As variáveis públicas necessárias estão documentadas em `.env.example`.
+As variáveis públicas e privadas necessárias estão documentadas em `.env.example`. As variáveis privadas devem ser configuradas somente no ambiente da Vercel e nunca podem receber o prefixo `VITE_`.
 
 ## Status
 
-O fluxo de compra, o estoque e os pedidos estão funcionais. O pagamento permanece simulado nesta etapa; a integração segura com Pix e cartão faz parte das evoluções planejadas.
+O fluxo de compra, o estoque e os pedidos estão funcionais. A V9 integra o Checkout PagBank em Sandbox para validar Pix, cartão, retorno ao site e notificações antes da homologação para produção.
 
 ## Autor
 
