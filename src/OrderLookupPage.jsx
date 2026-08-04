@@ -156,7 +156,7 @@ export default function OrderLookupPage() {
                 </div>
               ))}
               <footer>
-                <span>Entrega {order.shipping === 0 ? "grátis" : formatCurrency(order.shipping)}</span>
+                <span>{order.discount > 0 ? `Cupom ${order.coupon_code}: − ${formatCurrency(order.discount)}` : `Entrega ${order.shipping === 0 ? "grátis" : formatCurrency(order.shipping)}`}</span>
                 <strong>Total {formatCurrency(order.total)}</strong>
               </footer>
             </div>

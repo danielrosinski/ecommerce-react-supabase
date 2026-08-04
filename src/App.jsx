@@ -33,6 +33,11 @@ import { isSupabaseConfigured } from "./lib/supabase";
 import { createOrder } from "./services/orders";
 import { formatPostalCode, lookupPostalCode } from "./services/postalCode";
 import { loadProducts } from "./services/products";
+import {
+  defaultDeliveryZones,
+  loadDeliveryZones,
+  validateCoupon,
+} from "./services/storeSettings";
 
 const categories = ["Todos", "Buquês", "Plantas"];
 
@@ -172,6 +177,23 @@ function Storefront({
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [deliveryZones, setDeliveryZones] = useState(defaultDeliveryZones);
+  const [commerceReady, setCommerceReady] = useState(!isSupabaseConfigured);
+
+  useEffect(() => {
+    let active = true;
+    loadDeliveryZones()
+      .then((zones) => {
+        if (!active) return;
+        setDeliveryZones(zones.length ? zones : defaultDeliveryZones);
+        setCommerceReady(true);
+      })
+      .catch((error) => {
+        console.error("Não foi possível carregar as taxas de entrega:", error);
+        if (active) setCommerceReady(false);
+      });
+    return () => { active = false; };
+  }, []);
 
   const activeProducts = products.filter((product) => product.active);
   const filteredProducts = useMemo(() => {
@@ -282,8 +304,8 @@ function Storefront({
   const finishOrder = async (event) => {
     event.preventDefault();
     if (checkoutLoading || cart.length === 0) return;
-    if (!databaseReady) {
-      setCheckoutError("A atualização V7 do banco ainda não foi executada. Use o arquivo supabase/v7-catalogo.sql antes de registrar pedidos.");
+    if (!databaseReady || !commerceReady) {
+      setCheckoutError("A atualização V8 do banco ainda não foi executada. Use o arquivo supabase/v8-loja.sql antes de registrar pedidos.");
       return;
     }
 
@@ -309,6 +331,7 @@ function Storefront({
       gift_message: formData.get("gift_message")?.trim(),
       anonymous_delivery: formData.get("anonymous_delivery") === "on",
       delivery_instructions: formData.get("delivery_instructions")?.trim(),
+      coupon_code: formData.get("coupon_code")?.trim(),
     };
 
     setCheckoutLoading(true);
@@ -435,8 +458,8 @@ function Storefront({
         <section className="catalog shell" id="catalogo" aria-labelledby="catalog-title">
           <div className="section-heading">
             <div>
-              <span className="eyebrow">Feito para presentear</span>
-              <h2 id="catalog-title">Flores e plantas</h2>
+              <span className="eyebrow">Escolhas para presentear</span>
+              <h2 id="catalog-title">Flores para cada ocasião</h2>
             </div>
             <p>{filteredProducts.length} produtos encontrados</p>
           </div>
@@ -508,40 +531,19 @@ function Storefront({
           </div>
         </section>
 
-        <section className="hero shell" aria-labelledby="hero-title">
-          <div className="hero-copy">
-            <span className="eyebrow">Floricultura em Guaratuba</span>
-            <h1 id="hero-title">Flores que dizem o que importa.</h1>
+        <section className="brand-story shell" aria-labelledby="brand-story-title">
+          <div className="brand-story-image" role="img" aria-label="Flores preparadas artesanalmente">
+            <span><Sparkles size={15} /> Preparado à mão em Guaratuba</span>
+          </div>
+          <div className="brand-story-copy">
+            <span className="eyebrow">Rosinski Floricultura</span>
+            <h2 id="brand-story-title">Delicadeza em cada escolha.</h2>
             <p>
-              Buquês e plantas escolhidos com delicadeza para celebrar,
-              acolher e transformar pequenos momentos em boas lembranças.
+              Flores e plantas selecionadas com cuidado para celebrar momentos,
+              levar carinho e transformar gestos simples em boas lembranças.
             </p>
-            <button
-              className="outline-button"
-              type="button"
-              onClick={() => document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" })}
-            >
-              Voltar ao catálogo <ArrowRight size={18} />
-            </button>
+            <a href="#catalogo">Conheça o catálogo <ArrowRight size={17} /></a>
           </div>
-          <div className="hero-image" role="img" aria-label="Buquê delicado em tons naturais">
-            <div className="hero-note">
-              <Sparkles size={16} />
-              <span>Preparado à mão para cada ocasião</span>
-            </div>
-          </div>
-        </section>
-
-        <section className="editorial-banner shell">
-          <div>
-            <span className="eyebrow">Um gesto que permanece</span>
-            <h2>Afeto em cada<br />detalhe.</h2>
-          </div>
-          <p>
-            Cada composição é preparada com cuidado e pode levar uma mensagem
-            especial para tornar a entrega ainda mais pessoal.
-          </p>
-          <a href="#catalogo">Encontre o presente ideal <ArrowRight size={17} /></a>
         </section>
       </main>
 
@@ -572,6 +574,7 @@ function Storefront({
         result={orderResult}
         loading={checkoutLoading}
         error={checkoutError}
+        deliveryZones={deliveryZones}
         onClose={closeCheckout}
         onSubmit={finishOrder}
       />
@@ -616,35 +619,34 @@ function ProductCard({ product, quantity, favorite, onFavorite, onAdd, onDetails
         ? `${remaining} ${remaining === 1 ? "unidade" : "unidades"}`
         : "Em estoque";
 
+  const hasChoices = productSizes(product).length > 1 || productAddons(product).length > 0;
+
   return (
     <article className={`product-card ${product.stock === 0 ? "sold-out" : ""}`}>
-      <button className="product-visual product-visual-button" type="button" onClick={onDetails} aria-label={`Ver detalhes de ${product.name}`}>
-        <img src={product.image} alt={product.name} loading="lazy" />
+      <div className="product-visual">
+        <button className="product-image-link" type="button" onClick={onDetails} aria-label={`Ver detalhes de ${product.name}`}>
+          <img src={product.image} alt={product.name} loading="lazy" />
+        </button>
         <span className="product-tag">{product.tag}</span>
-        <span
+        <button
           className={`favorite-button ${favorite ? "active" : ""}`}
-          aria-hidden="true"
+          type="button"
+          aria-label={favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+          aria-pressed={favorite}
+          onClick={onFavorite}
         >
           <Heart size={19} fill={favorite ? "currentColor" : "none"} />
-        </span>
-      </button>
+        </button>
+      </div>
       <div className="product-info">
         <p className="product-category">{product.category}</p>
-        <h3>{product.name}</h3>
+        <button className="product-title-button" type="button" onClick={onDetails}><h3>{product.name}</h3></button>
         <div className="product-meta">
           <strong>{formatCurrency(product.price)}</strong>
-          <span className={`stock ${stockClass}`}>
-            <i /> {stockLabel}
-          </span>
+          {(stockClass !== "available") && <span className={`stock ${stockClass}`}><i /> {stockLabel}</span>}
         </div>
-        <div className="product-card-actions">
-          <button className="details-button" type="button" onClick={onDetails}>Ver detalhes</button>
-          <button className="add-button" type="button" onClick={onAdd} disabled={remaining === 0}>
-            {product.stock === 0 ? "Indisponível" : quantity > 0 ? `Comprar mais · ${quantity}` : "Comprar agora"}
-          </button>
-        </div>
-        <button className={`favorite-text-button ${favorite ? "active" : ""}`} type="button" onClick={onFavorite} aria-pressed={favorite}>
-          <Heart size={15} fill={favorite ? "currentColor" : "none"} /> {favorite ? "Salvo nos favoritos" : "Salvar nos favoritos"}
+        <button className="add-button" type="button" onClick={hasChoices ? onDetails : onAdd} disabled={remaining === 0}>
+          {product.stock === 0 ? "Indisponível" : hasChoices ? "Ver opções" : quantity > 0 ? `Adicionar mais · ${quantity}` : "Adicionar ao carrinho"}
         </button>
       </div>
     </article>
@@ -813,6 +815,7 @@ function CheckoutModal({
   result,
   loading,
   error,
+  deliveryZones,
   onClose,
   onSubmit,
 }) {
@@ -830,6 +833,9 @@ function CheckoutModal({
     type: "idle",
     message: "",
   });
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponStatus, setCouponStatus] = useState({ type: "idle", message: "" });
 
   useEffect(() => {
     if (open) return;
@@ -844,6 +850,9 @@ function CheckoutModal({
       city: "",
     });
     setPostalStatus({ type: "idle", message: "" });
+    setCouponInput("");
+    setAppliedCoupon(null);
+    setCouponStatus({ type: "idle", message: "" });
   }, [open]);
 
   useEffect(() => {
@@ -894,9 +903,28 @@ function CheckoutModal({
   }, [address.postal_code, deliveryMethod, open]);
 
   if (!open) return null;
-  const shipping = deliveryMethod === "pickup" ? 0 : 14.9;
-  const total = subtotal + shipping;
+  const normalizedNeighborhood = address.neighborhood.trim().toLocaleLowerCase("pt-BR");
+  const activeZones = deliveryZones.filter((zone) => zone.active);
+  const matchedZone = activeZones.find(
+    (zone) => zone.neighborhood.trim().toLocaleLowerCase("pt-BR") === normalizedNeighborhood,
+  ) ?? activeZones.find((zone) => zone.neighborhood === "*");
+  const shipping = deliveryMethod === "pickup" ? 0 : Number(matchedZone?.fee ?? 14.9);
+  const discount = Number(appliedCoupon?.discount ?? 0);
+  const total = Math.max(0, subtotal - discount) + shipping;
   const minDeliveryDate = new Date().toISOString().split("T")[0];
+
+  const applyCoupon = async () => {
+    setCouponStatus({ type: "loading", message: "Validando cupom..." });
+    setAppliedCoupon(null);
+    try {
+      const result = await validateCoupon(couponInput, subtotal);
+      setAppliedCoupon(result);
+      setCouponInput(result.code);
+      setCouponStatus({ type: "success", message: `Cupom aplicado: ${formatCurrency(result.discount)} de desconto.` });
+    } catch (couponError) {
+      setCouponStatus({ type: "error", message: couponError.message || "Cupom inválido ou indisponível." });
+    }
+  };
 
   return (
     <div className="modal-layer" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
@@ -930,7 +958,7 @@ function CheckoutModal({
             <div className="delivery-options">
               <label className={deliveryMethod === "delivery" ? "selected" : ""}>
                 <input type="radio" name="delivery_method" value="delivery" checked={deliveryMethod === "delivery"} onChange={() => setDeliveryMethod("delivery")} />
-                <Truck size={20} /><span><strong>Entrega em Guaratuba</strong><small>Taxa calculada: {formatCurrency(14.9)}</small></span>
+                <Truck size={20} /><span><strong>Entrega em Guaratuba</strong><small>{address.neighborhood ? `Taxa para ${address.neighborhood}: ${formatCurrency(shipping)}` : `A partir de ${formatCurrency(shipping)}`}</small></span>
               </label>
               <label className={deliveryMethod === "pickup" ? "selected" : ""}>
                 <input type="radio" name="delivery_method" value="pickup" checked={deliveryMethod === "pickup"} onChange={() => setDeliveryMethod("pickup")} />
@@ -994,10 +1022,18 @@ function CheckoutModal({
               <Check size={17} />
             </div>
 
+            <div className="coupon-box">
+              <label htmlFor="coupon-code">Cupom de desconto</label>
+              <div><input id="coupon-code" value={couponInput} onChange={(event) => { setCouponInput(event.target.value.toUpperCase()); setAppliedCoupon(null); setCouponStatus({ type: "idle", message: "" }); }} placeholder="Digite o código" /><button type="button" onClick={applyCoupon} disabled={!couponInput.trim() || couponStatus.type === "loading"}>{couponStatus.type === "loading" ? "Validando..." : "Aplicar"}</button></div>
+              {couponStatus.message && <small className={couponStatus.type}>{couponStatus.message}</small>}
+              <input type="hidden" name="coupon_code" value={appliedCoupon?.code ?? ""} />
+            </div>
+
             {error && <div className="checkout-error" role="alert"><AlertCircle size={18} />{error}</div>}
 
             <div className="checkout-prices">
               <div><span>Subtotal</span><strong>{formatCurrency(subtotal)}</strong></div>
+              {discount > 0 && <div className="discount-line"><span>Desconto</span><strong>− {formatCurrency(discount)}</strong></div>}
               <div><span>Frete</span><strong>{shipping === 0 ? "Grátis" : formatCurrency(shipping)}</strong></div>
             </div>
             <div className="checkout-total"><span>Total do pedido</span><strong>{formatCurrency(total)}</strong></div>

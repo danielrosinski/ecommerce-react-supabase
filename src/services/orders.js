@@ -23,6 +23,8 @@ const orderColumns = `
   anonymous_delivery,
   delivery_instructions,
   subtotal,
+  discount,
+  coupon_code,
   shipping,
   total,
   payment_method,
@@ -48,6 +50,7 @@ function normalizeOrder(order) {
     ...order,
     id: Number(order.id),
     subtotal: Number(order.subtotal),
+    discount: Number(order.discount ?? 0),
     shipping: Number(order.shipping),
     total: Number(order.total),
     order_items: (order.order_items ?? []).map((item) => ({
@@ -76,12 +79,15 @@ function createDemoOrder(customer, cart, products) {
     return sum + ((product?.price ?? 0) + Number(size?.price_delta ?? 0) + extras) * item.quantity;
   }, 0);
   const shipping = customer.delivery_method === "pickup" ? 0 : 14.9;
+  const discount = customer.coupon_code === "BEMVINDO10" ? Math.min(subtotal * 0.1, 50) : 0;
 
   return {
     order_number: `ROSINSKI-DEMO-${String(Date.now()).slice(-6)}`,
     subtotal,
+    discount,
+    coupon_code: discount > 0 ? "BEMVINDO10" : "",
     shipping,
-    total: subtotal + shipping,
+    total: subtotal - discount + shipping,
     status: "confirmed",
     demo: true,
   };
@@ -110,6 +116,7 @@ export async function createOrder({ customer, cart, products }) {
   return {
     ...result,
     subtotal: Number(result?.subtotal ?? 0),
+    discount: Number(result?.discount ?? 0),
     shipping: Number(result?.shipping ?? 0),
     total: Number(result?.total ?? 0),
   };
@@ -160,6 +167,8 @@ export async function lookupOrder(orderNumber, email) {
 
   return {
     ...result,
+    subtotal: Number(result.subtotal ?? 0),
+    discount: Number(result.discount ?? 0),
     shipping: Number(result.shipping ?? 0),
     total: Number(result.total ?? 0),
     items: Array.isArray(result.items) ? result.items : [],

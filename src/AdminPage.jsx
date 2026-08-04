@@ -19,8 +19,11 @@ import {
   Plus,
   PlusCircle,
   RefreshCw,
+  Settings,
   ShieldCheck,
+  Tag,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { formatCurrency } from "./data";
@@ -32,6 +35,18 @@ import {
   restoreExampleProducts,
   saveProductChange,
 } from "./services/products";
+import {
+  createCoupon,
+  createDeliveryZone,
+  defaultDeliveryZones,
+  deleteCoupon,
+  deleteDeliveryZone,
+  loadCoupons,
+  loadDeliveryZones,
+  updateCoupon,
+  updateDeliveryZone,
+  uploadProductImage,
+} from "./services/storeSettings";
 
 const orderStatuses = [
   { value: "received", label: "Pedido recebido" },
@@ -492,7 +507,7 @@ function InventoryManager({
           <div>
             <span className="eyebrow">Área administrativa</span>
             <h1>Gestão da loja</h1>
-            <p>Controle produtos, estoque e pedidos em um único lugar.</p>
+            <p>Controle produtos, pedidos, entregas e promoções em um único lugar.</p>
           </div>
           <div className="admin-title-actions">
             {view === "products" ? (
@@ -516,7 +531,7 @@ function InventoryManager({
                   {restoring ? "Restaurando..." : "Restaurar dados de exemplo"}
                 </button>
               </>
-            ) : (
+            ) : view === "orders" ? (
               <button
                 className="text-button"
                 type="button"
@@ -526,7 +541,7 @@ function InventoryManager({
                 <RefreshCw className={ordersLoading ? "spin" : ""} size={14} />
                 Atualizar pedidos
               </button>
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -545,6 +560,13 @@ function InventoryManager({
           >
             <ClipboardList size={18} /> Pedidos
             {orders.length > 0 && <span>{orders.length}</span>}
+          </button>
+          <button
+            type="button"
+            className={view === "settings" ? "active" : ""}
+            onClick={() => setView("settings")}
+          >
+            <Settings size={18} /> Entregas e cupons
           </button>
         </nav>
 
@@ -720,7 +742,7 @@ function InventoryManager({
               </p>
             </div>
           </>
-        ) : (
+        ) : view === "orders" ? (
           <>
             <div className="admin-metrics order-metrics">
               <div><span>Total de pedidos</span><strong>{orders.length}</strong></div>
@@ -845,6 +867,7 @@ function InventoryManager({
 
                       <footer className="order-card-footer">
                         <div><span>Subtotal</span><strong>{formatCurrency(order.subtotal)}</strong></div>
+                        {order.discount > 0 && <div><span>Desconto · {order.coupon_code}</span><strong>− {formatCurrency(order.discount)}</strong></div>}
                         <div><span>Frete</span><strong>{order.shipping === 0 ? "Grátis" : formatCurrency(order.shipping)}</strong></div>
                         <div className="order-total"><span>Total</span><strong>{formatCurrency(order.total)}</strong></div>
                       </footer>
@@ -861,6 +884,8 @@ function InventoryManager({
               </p>
             </div>
           </>
+        ) : (
+          <CommerceSettings connected={connected} />
         )}
       </main>
       {productEditor && (
@@ -872,6 +897,203 @@ function InventoryManager({
           onSave={handleProductSave}
         />
       )}
+    </div>
+  );
+}
+
+function CommerceSettings({ connected }) {
+  const [zones, setZones] = useState(defaultDeliveryZones);
+  const [coupons, setCoupons] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState({ type: "", text: "" });
+  const [zoneForm, setZoneForm] = useState({ neighborhood: "", fee: "", min_order: 0, active: true });
+  const [couponForm, setCouponForm] = useState({
+    code: "",
+    discount_type: "percentage",
+    discount_value: 10,
+    min_order: 0,
+    max_discount: "",
+    starts_at: "",
+    ends_at: "",
+    usage_limit: "",
+    active: true,
+  });
+
+  const refresh = async () => {
+    setLoading(true);
+    setMessage({ type: "", text: "" });
+    try {
+      const [nextZones, nextCoupons] = await Promise.all([
+        loadDeliveryZones(),
+        loadCoupons(),
+      ]);
+      setZones(nextZones);
+      setCoupons(nextCoupons);
+    } catch (error) {
+      setMessage({
+        type: "error",
+        text: error?.code === "42P01" || error?.code === "PGRST205"
+          ? "Execute o arquivo supabase/v8-loja.sql para liberar estas configurações."
+          : error.message || "Não foi possível carregar as configurações.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected]);
+
+  const changeZone = (id, field, value) =>
+    setZones((current) => current.map((zone) => zone.id === id ? { ...zone, [field]: value } : zone));
+
+  const saveZone = async (zone) => {
+    try {
+      const saved = await updateDeliveryZone(zone.id, {
+        neighborhood: zone.neighborhood.trim(),
+        fee: Math.max(0, Number(zone.fee)),
+        min_order: Math.max(0, Number(zone.min_order)),
+        active: Boolean(zone.active),
+      });
+      setZones((current) => current.map((item) => item.id === saved.id ? saved : item));
+      setMessage({ type: "success", text: "Taxa de entrega atualizada." });
+    } catch (error) {
+      setMessage({ type: "error", text: error.message || "Não foi possível salvar a taxa." });
+    }
+  };
+
+  const addZone = async (event) => {
+    event.preventDefault();
+    try {
+      const created = await createDeliveryZone(zoneForm);
+      setZones((current) => [...current, created].sort((a, b) => a.neighborhood.localeCompare(b.neighborhood)));
+      setZoneForm({ neighborhood: "", fee: "", min_order: 0, active: true });
+      setMessage({ type: "success", text: "Bairro adicionado às entregas." });
+    } catch (error) {
+      setMessage({ type: "error", text: error.message || "Não foi possível adicionar o bairro." });
+    }
+  };
+
+  const removeZone = async (zone) => {
+    if (!window.confirm(`Excluir a taxa de entrega para “${zone.neighborhood === "*" ? "Outros bairros" : zone.neighborhood}”?`)) return;
+    try {
+      await deleteDeliveryZone(zone.id);
+      setZones((current) => current.filter((item) => item.id !== zone.id));
+      setMessage({ type: "success", text: "Taxa removida." });
+    } catch (error) {
+      setMessage({ type: "error", text: error.message || "Não foi possível remover a taxa." });
+    }
+  };
+
+  const changeCoupon = (id, field, value) =>
+    setCoupons((current) => current.map((coupon) => coupon.id === id ? { ...coupon, [field]: value } : coupon));
+
+  const saveCoupon = async (coupon) => {
+    try {
+      const saved = await updateCoupon(coupon.id, {
+        code: coupon.code.trim().toUpperCase(),
+        discount_type: coupon.discount_type,
+        discount_value: Math.max(0.01, Number(coupon.discount_value)),
+        min_order: Math.max(0, Number(coupon.min_order)),
+        max_discount: coupon.max_discount === "" ? null : Math.max(0.01, Number(coupon.max_discount)),
+        ends_at: coupon.ends_at || null,
+        usage_limit: coupon.usage_limit === "" ? null : Math.max(1, Number(coupon.usage_limit)),
+        active: Boolean(coupon.active),
+      });
+      setCoupons((current) => current.map((item) => item.id === saved.id ? saved : item));
+      setMessage({ type: "success", text: "Cupom atualizado." });
+    } catch (error) {
+      setMessage({ type: "error", text: error.message || "Não foi possível salvar o cupom." });
+    }
+  };
+
+  const addCoupon = async (event) => {
+    event.preventDefault();
+    try {
+      const created = await createCoupon(couponForm);
+      setCoupons((current) => [created, ...current]);
+      setCouponForm({ code: "", discount_type: "percentage", discount_value: 10, min_order: 0, max_discount: "", starts_at: "", ends_at: "", usage_limit: "", active: true });
+      setMessage({ type: "success", text: "Cupom criado com sucesso." });
+    } catch (error) {
+      setMessage({ type: "error", text: error.message || "Não foi possível criar o cupom." });
+    }
+  };
+
+  const removeCoupon = async (coupon) => {
+    if (!window.confirm(`Excluir o cupom “${coupon.code}”?`)) return;
+    try {
+      await deleteCoupon(coupon.id);
+      setCoupons((current) => current.filter((item) => item.id !== coupon.id));
+      setMessage({ type: "success", text: "Cupom excluído." });
+    } catch (error) {
+      setMessage({ type: "error", text: error.message || "Não foi possível excluir o cupom." });
+    }
+  };
+
+  if (loading) {
+    return <div className="settings-state"><RefreshCw className="spin" size={24} /><p>Carregando configurações...</p></div>;
+  }
+
+  return (
+    <div className="commerce-settings">
+      {message.text && <div className={`admin-feedback ${message.type}`} role="status">{message.type === "success" ? <Check size={17} /> : <AlertCircle size={17} />}{message.text}</div>}
+
+      <section className="settings-card" aria-labelledby="delivery-settings-title">
+        <header><div><span className="settings-icon"><MapPin size={19} /></span><div><h2 id="delivery-settings-title">Taxas de entrega</h2><p>Defina o valor por bairro. “Outros bairros” funciona como taxa padrão.</p></div></div><span>{zones.filter((zone) => zone.active).length} ativas</span></header>
+        <div className="settings-list delivery-zone-list">
+          {zones.map((zone) => (
+            <div className="settings-row zone-row" key={zone.id}>
+              <label>Bairro<input value={zone.neighborhood === "*" ? "Outros bairros" : zone.neighborhood} disabled={zone.neighborhood === "*"} onChange={(event) => changeZone(zone.id, "neighborhood", event.target.value)} /></label>
+              <label>Taxa<input type="number" min="0" step="0.01" value={zone.fee} onChange={(event) => changeZone(zone.id, "fee", event.target.value)} /></label>
+              <label>Pedido mínimo<input type="number" min="0" step="0.01" value={zone.min_order} onChange={(event) => changeZone(zone.id, "min_order", event.target.value)} /></label>
+              <label className="settings-check"><input type="checkbox" checked={zone.active} onChange={(event) => changeZone(zone.id, "active", event.target.checked)} />Ativa</label>
+              <div className="settings-actions"><button type="button" onClick={() => saveZone(zone)}>Salvar</button><button className="delete" type="button" onClick={() => removeZone(zone)} aria-label="Excluir taxa"><Trash2 size={15} /></button></div>
+            </div>
+          ))}
+        </div>
+        <form className="settings-create-form zone-create-form" onSubmit={addZone}>
+          <strong>Novo bairro</strong>
+          <label>Nome<input required value={zoneForm.neighborhood} onChange={(event) => setZoneForm((current) => ({ ...current, neighborhood: event.target.value }))} placeholder="Ex.: Coroados" /></label>
+          <label>Taxa<input required type="number" min="0" step="0.01" value={zoneForm.fee} onChange={(event) => setZoneForm((current) => ({ ...current, fee: event.target.value }))} placeholder="0,00" /></label>
+          <label>Pedido mínimo<input type="number" min="0" step="0.01" value={zoneForm.min_order} onChange={(event) => setZoneForm((current) => ({ ...current, min_order: event.target.value }))} /></label>
+          <button className="primary-button" type="submit"><Plus size={16} /> Adicionar</button>
+        </form>
+      </section>
+
+      <section className="settings-card" aria-labelledby="coupon-settings-title">
+        <header><div><span className="settings-icon"><Tag size={19} /></span><div><h2 id="coupon-settings-title">Cupons</h2><p>Crie descontos percentuais ou de valor fixo, com limites e validade.</p></div></div><span>{coupons.filter((coupon) => coupon.active).length} ativos</span></header>
+        <div className="settings-list coupon-list">
+          {coupons.length === 0 ? <p className="settings-empty">Nenhum cupom cadastrado.</p> : coupons.map((coupon) => (
+            <div className="coupon-admin-card" key={coupon.id}>
+              <div className="coupon-admin-heading"><strong>{coupon.code}</strong><span>{coupon.times_used} utilizações</span></div>
+              <div className="coupon-admin-grid">
+                <label>Código<input value={coupon.code} onChange={(event) => changeCoupon(coupon.id, "code", event.target.value.toUpperCase())} /></label>
+                <label>Tipo<select value={coupon.discount_type} onChange={(event) => changeCoupon(coupon.id, "discount_type", event.target.value)}><option value="percentage">Porcentagem</option><option value="fixed">Valor fixo</option></select></label>
+                <label>Desconto<input type="number" min="0.01" step="0.01" value={coupon.discount_value} onChange={(event) => changeCoupon(coupon.id, "discount_value", event.target.value)} /></label>
+                <label>Pedido mínimo<input type="number" min="0" step="0.01" value={coupon.min_order} onChange={(event) => changeCoupon(coupon.id, "min_order", event.target.value)} /></label>
+                <label>Desconto máximo<input type="number" min="0" step="0.01" value={coupon.max_discount ?? ""} onChange={(event) => changeCoupon(coupon.id, "max_discount", event.target.value)} placeholder="Sem limite" /></label>
+                <label>Validade<input type="date" value={coupon.ends_at ?? ""} onChange={(event) => changeCoupon(coupon.id, "ends_at", event.target.value)} /></label>
+                <label>Limite de usos<input type="number" min="1" value={coupon.usage_limit ?? ""} onChange={(event) => changeCoupon(coupon.id, "usage_limit", event.target.value)} placeholder="Sem limite" /></label>
+                <label className="settings-check"><input type="checkbox" checked={coupon.active} onChange={(event) => changeCoupon(coupon.id, "active", event.target.checked)} />Ativo</label>
+              </div>
+              <div className="coupon-admin-actions"><button type="button" onClick={() => saveCoupon(coupon)}>Salvar alterações</button><button className="delete" type="button" onClick={() => removeCoupon(coupon)}><Trash2 size={15} /> Excluir</button></div>
+            </div>
+          ))}
+        </div>
+
+        <form className="settings-create-form coupon-create-form" onSubmit={addCoupon}>
+          <strong>Novo cupom</strong>
+          <label>Código<input required value={couponForm.code} onChange={(event) => setCouponForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))} placeholder="EX.: FLORES10" /></label>
+          <label>Tipo<select value={couponForm.discount_type} onChange={(event) => setCouponForm((current) => ({ ...current, discount_type: event.target.value }))}><option value="percentage">Porcentagem</option><option value="fixed">Valor fixo</option></select></label>
+          <label>Desconto<input required type="number" min="0.01" step="0.01" value={couponForm.discount_value} onChange={(event) => setCouponForm((current) => ({ ...current, discount_value: event.target.value }))} /></label>
+          <label>Pedido mínimo<input type="number" min="0" step="0.01" value={couponForm.min_order} onChange={(event) => setCouponForm((current) => ({ ...current, min_order: event.target.value }))} /></label>
+          <label>Validade<input type="date" value={couponForm.ends_at} onChange={(event) => setCouponForm((current) => ({ ...current, ends_at: event.target.value }))} /></label>
+          <label>Limite de usos<input type="number" min="1" value={couponForm.usage_limit} onChange={(event) => setCouponForm((current) => ({ ...current, usage_limit: event.target.value }))} placeholder="Sem limite" /></label>
+          <button className="primary-button" type="submit"><Plus size={16} /> Criar cupom</button>
+        </form>
+      </section>
     </div>
   );
 }
@@ -896,6 +1118,8 @@ function ProductEditor({ mode, product, saving, onClose, onSave }) {
     featured: product?.featured ?? false,
     active: product?.active ?? true,
   });
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState("");
 
   useEffect(() => {
     document.body.classList.add("no-scroll");
@@ -904,6 +1128,23 @@ function ProductEditor({ mode, product, saving, onClose, onSave }) {
 
   const updateField = (field, value) =>
     setForm((current) => ({ ...current, [field]: value }));
+
+  const handleImageUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploadingImage(true);
+    setUploadMessage("Enviando imagem...");
+    try {
+      const publicUrl = await uploadProductImage(file);
+      updateField("image", publicUrl);
+      setUploadMessage("Imagem enviada. Salve o produto para concluir.");
+    } catch (error) {
+      setUploadMessage(error.message || "Não foi possível enviar a imagem.");
+    } finally {
+      setUploadingImage(false);
+      event.target.value = "";
+    }
+  };
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -919,16 +1160,18 @@ function ProductEditor({ mode, product, saving, onClose, onSave }) {
       .map(([id, label, price]) => ({ id, label, price: Math.max(0, Number(price)) }));
 
     onSave({
-      ...form,
       name: form.name.trim(),
+      category: form.category,
+      price: Math.max(0, Number(form.price)),
+      stock: Math.max(0, Number(form.stock)),
       tag: form.tag.trim(),
       image: form.image.trim(),
       description: form.description.trim(),
       care_instructions: form.care_instructions.trim(),
       size_options: sizeOptions,
       addons,
-      price: Math.max(0, Number(form.price)),
-      stock: Math.max(0, Number(form.stock)),
+      featured: Boolean(form.featured),
+      active: Boolean(form.active),
     });
   };
 
@@ -946,12 +1189,20 @@ function ProductEditor({ mode, product, saving, onClose, onSave }) {
         <p>Preencha as informações que serão exibidas na loja.</p>
 
         <div className="product-editor-layout">
-          <div className="product-image-preview">
-            {form.image ? (
-              <img src={form.image} alt="Prévia do produto" />
-            ) : (
-              <div><ImageIcon size={28} /><span>Prévia da imagem</span></div>
-            )}
+          <div className="product-media-editor">
+            <div className="product-image-preview">
+              {form.image ? (
+                <img src={form.image} alt="Prévia do produto" />
+              ) : (
+                <div><ImageIcon size={28} /><span>Prévia da imagem</span></div>
+              )}
+            </div>
+            <label className={`image-upload-field ${uploadingImage ? "uploading" : ""}`}>
+              <Upload size={17} />
+              <span>{uploadingImage ? "Enviando..." : "Enviar imagem do computador"}</span>
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploadingImage} onChange={handleImageUpload} />
+            </label>
+            {uploadMessage && <small className="image-upload-message">{uploadMessage}</small>}
           </div>
 
           <div className="product-form-grid">
@@ -1014,7 +1265,7 @@ function ProductEditor({ mode, product, saving, onClose, onSave }) {
 
         <div className="product-editor-actions">
           <button className="outline-button" type="button" onClick={onClose}>Cancelar</button>
-          <button className="primary-button" type="submit" disabled={saving}>
+          <button className="primary-button" type="submit" disabled={saving || uploadingImage}>
             {saving ? <><RefreshCw className="spin" size={16} /> Salvando...</> : mode === "create" ? "Cadastrar produto" : "Salvar alterações"}
           </button>
         </div>
